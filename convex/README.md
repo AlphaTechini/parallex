@@ -6,13 +6,33 @@ The authentication boundary can be found in [auth.ts](file:///C:/Hackathons/Para
 
 To find Firecrawl source persistence and durable provider jobs visit [sources.ts](file:///C:/Hackathons/Parallex/convex/sources.ts), [firecrawlJobs.ts](file:///C:/Hackathons/Parallex/convex/firecrawlJobs.ts), and [firecrawlJobPoller.ts](file:///C:/Hackathons/Parallex/convex/firecrawlJobPoller.ts).
 
-To find report storage and private download authorization visit [reports.ts](file:///C:/Hackathons/Parallex/convex/reports.ts) and [reportRenderer.ts](file:///C:/Hackathons/Parallex/reportRenderer.ts).
+To find report storage, Markdown sanitization, and private download authorization visit [reports.ts](file:///C:/Hackathons/Parallex/convex/reports.ts) and [reportRenderer.ts](file:///C:/Hackathons/Parallex/reportRenderer.ts).
 
 To find AgentMail outbound, inbound, and webhook handling visit [emails.ts](file:///C:/Hackathons/Parallex/convex/emails.ts), [emailSender.ts](file:///C:/Hackathons/Parallex/convex/workers/emailSender.ts), [inboundEmailProcessor.ts](file:///C:/Hackathons/Parallex/convex/inboundEmailProcessor.ts), and [webhooks.ts](file:///C:/Hackathons/Parallex/convex/webhooks.ts).
 
 To find schedule creation, recurrence calculation, occurrence execution, and user controls visit [schedules.ts](file:///C:/Hackathons/Parallex/convex/schedules.ts), [scheduleOccurrenceWorker.ts](file:///C:/Hackathons/Parallex/convex/scheduleOccurrenceWorker.ts), and [recurrence.ts](file:///C:/Hackathons/Parallex/convex/lib/recurrence.ts).
 
-The Convex database and authentication connection can be found in [auth.ts](file:///C:/Hackathons/Parallex/convex/auth.ts), [auth.config.ts](file:///C:/Hackathons/Parallex/convex/auth.config.ts), and [http.ts](file:///C:/Hackathons/Parallex/convex/http.ts).
+To find prompt submission, receipt, duplicate protection, and chat queueing visit [messages.ts](file:///C:/Hackathons/Parallex/convex/messages.ts) and [runs.ts](file:///C:/Hackathons/Parallex/convex/runs.ts).
+
+To find bot creation, inbox provisioning state, and the email bot limit visit [bots.ts](file:///C:/Hackathons/Parallex/convex/bots.ts) and [inboxes.ts](file:///C:/Hackathons/Parallex/convex/inboxes.ts).
+
+To find owner-bound upload validation for avatars and research attachments visit [attachments.ts](file:///C:/Hackathons/Parallex/convex/attachments.ts) and the upload mutations in [bots.ts](file:///C:/Hackathons/Parallex/convex/bots.ts).
+
+To find encrypted OpenAI credential storage visit [credentials.ts](file:///C:/Hackathons/Parallex/convex/credentials.ts).
+
+The Convex database and authentication connection can be found in [auth.ts](file:///C:/Hackathons/Parallex/convex/auth.ts), [auth.config.ts](file:///C:/Hackathons/Parallex/convex/auth.config.ts), and [http.ts](file:///C:/Hackathons/Parallex/convex/http.ts). The AgentMail webhook connection can be found in [webhooks.ts](file:///C:/Hackathons/Parallex/convex/webhooks.ts) and [http.ts](file:///C:/Hackathons/Parallex/convex/http.ts).
+
+Subsystem folders: [lib/](file:///C:/Hackathons/Parallex/convex/lib/README.md), [prompts/](file:///C:/Hackathons/Parallex/convex/prompts/README.md), [tools/](file:///C:/Hackathons/Parallex/convex/tools/README.md), [workers/](file:///C:/Hackathons/Parallex/convex/workers/README.md).
+
+## Architectural decisions
+
+- Convex is the entire backend: database, realtime layer, auth, actions, scheduler, and file storage. No second server exists, so ownership checks live in one place and the realtime UI subscribes to the same state the workers write. The tradeoff is tight coupling to Convex limits (action duration, bandwidth, storage).
+- Every application table carries `ownerId` with owner-prefixed indexes, and public functions derive the user from Convex Auth rather than trusting arguments. This costs a predictable amount of repetitive checking code but makes tenant isolation structural instead of per-feature.
+- Provider identifiers (OpenAI conversation and response identifiers, Firecrawl job identifiers, AgentMail inbox, thread, and message identifiers) are stored as backend metadata with internal ownership context. They speed up provider operations but never authorize anything on their own.
+- One active run per chat is enforced through `chats.activeRunId`, with queued runs promoted by a follow-up mutation. This serializes provider spend and keeps the activity feed unambiguous at the cost of within-chat throughput.
+- Long work is split across short Node actions with lease and generation counters plus a delayed watchdog, because a single action cannot outlast the Convex execution limit. The run can therefore survive interruptions and browser closure, but the state machine has more explicit checkpoints than a naive implementation.
+- Side effects (tool execution, report storage, email send, schedule creation, inbox creation) are idempotent through derived keys, so worker retries never duplicate external operations.
+- Email sending, inbox provisioning, and provider calls live in `"use node"` actions because their SDKs need the Node runtime; state transitions stay in mutations so each provider call is preceded and followed by transactional bookkeeping.
 
 ## Next 16 + Convex Auth spike
 
