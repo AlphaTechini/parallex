@@ -25,7 +25,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
     api.runs.getRun,
     chat?.activeRunId ? { runId: chat.activeRunId } : "skip",
   );
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results: resultsDesc, status, loadMore } = usePaginatedQuery(
     api.messages.listMessages,
     { chatId },
     { initialNumItems: 50 },
@@ -38,6 +38,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
     return <section className="empty-state"><h1>Chat not found</h1></section>;
   }
 
+  const messages = [...resultsDesc].reverse();
   const active = isRunActive(run?.status);
 
   return (
@@ -62,7 +63,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
               Load older messages
             </Button>
           ) : null}
-          {results.length === 0 ? (
+          {messages.length === 0 ? (
             <div className="chat-empty">
               <span className="empty-index">01</span>
               <h2>What should {bot.name} investigate?</h2>
@@ -72,7 +73,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
               </p>
             </div>
           ) : (
-            results.map((message) => <MessageRow key={message._id} message={message} />)
+            messages.map((message) => <MessageRow key={message._id} message={message} />)
           )}
         </div>
         <Composer

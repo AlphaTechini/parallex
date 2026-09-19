@@ -37,7 +37,7 @@ export const listMessages = query({
       .withIndex("by_owner_chat_created", (q) =>
         q.eq("ownerId", ownerId).eq("chatId", args.chatId),
       )
-      .order("asc")
+      .order("desc")
       .paginate(args.paginationOpts);
 
     const messages = await Promise.all(

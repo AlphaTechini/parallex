@@ -23,16 +23,19 @@ const EVENT_ICONS: Record<string, string> = {
 export function ActivityFeed({
   runId,
   active,
+  initiallyExpanded,
 }: {
   runId: Id<"researchRuns">;
   active: boolean;
+  initiallyExpanded?: boolean;
 }) {
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results: resultsDesc, status, loadMore } = usePaginatedQuery(
     api.runEvents.listRunEvents,
     { runId },
     { initialNumItems: 30 },
   );
-  const [expanded, setExpanded] = useState(active);
+  const results = [...resultsDesc].reverse();
+  const [expanded, setExpanded] = useState(initiallyExpanded ?? active);
 
   return (
     <section className="activity-feed">

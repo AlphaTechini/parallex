@@ -1,6 +1,9 @@
+"use client";
+
 import type { Id } from "../../../convex/_generated/dataModel";
 
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { MessageRunSection } from "@/components/chat/MessageRunSection";
 import { RunArtifacts } from "@/components/chat/RunArtifacts";
 import { Badge } from "@/components/ui/Badge";
 import { formatBytes } from "@/lib/format";
@@ -55,6 +58,7 @@ export function MessageRow({ message }: { message: Message }) {
           <span /> <span /> <span />
         </div>
       )}
+      {message.runId ? <MessageRunSection runId={message.runId} /> : null}
       {message.runId ? <RunArtifacts runId={message.runId} /> : null}
     </article>
   );

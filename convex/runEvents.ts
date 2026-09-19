@@ -16,7 +16,7 @@ export const listRunEvents = query({
       .withIndex("by_owner_run_sequence", (q) =>
         q.eq("ownerId", ownerId).eq("runId", args.runId),
       )
-      .order("asc")
+      .order("desc")
       .paginate(args.paginationOpts);
 
     return {
