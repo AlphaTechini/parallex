@@ -20,12 +20,18 @@ import type * as lib_authHelpers from "../lib/authHelpers.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_models from "../lib/models.js";
 import type * as lib_normalize from "../lib/normalize.js";
+import type * as lib_openaiClient from "../lib/openaiClient.js";
 import type * as lib_stageMap from "../lib/stageMap.js";
 import type * as messages from "../messages.js";
+import type * as prompts_researchProtocol from "../prompts/researchProtocol.js";
 import type * as runEvents from "../runEvents.js";
 import type * as runs from "../runs.js";
+import type * as tools_definitions from "../tools/definitions.js";
 import type * as userProfiles from "../userProfiles.js";
 import type * as workers_inboxProvisioner from "../workers/inboxProvisioner.js";
+import type * as workers_runMutations from "../workers/runMutations.js";
+import type * as workers_runWorker from "../workers/runWorker.js";
+import type * as workers_streamConsumer from "../workers/streamConsumer.js";
 
 import type {
   ApiFromModules,
@@ -46,12 +52,18 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto": typeof lib_crypto;
   "lib/models": typeof lib_models;
   "lib/normalize": typeof lib_normalize;
+  "lib/openaiClient": typeof lib_openaiClient;
   "lib/stageMap": typeof lib_stageMap;
   messages: typeof messages;
+  "prompts/researchProtocol": typeof prompts_researchProtocol;
   runEvents: typeof runEvents;
   runs: typeof runs;
+  "tools/definitions": typeof tools_definitions;
   userProfiles: typeof userProfiles;
   "workers/inboxProvisioner": typeof workers_inboxProvisioner;
+  "workers/runMutations": typeof workers_runMutations;
+  "workers/runWorker": typeof workers_runWorker;
+  "workers/streamConsumer": typeof workers_streamConsumer;
 }>;
 
 /**
