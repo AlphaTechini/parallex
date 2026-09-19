@@ -27,6 +27,11 @@ const storePdf = makeFunctionReference<"mutation">("reports:storePdfArtifact");
 const markPartial = makeFunctionReference<"mutation">("reports:markPartial");
 const markFailed = makeFunctionReference<"mutation">("reports:markFailed");
 const markSourcesUsed = makeFunctionReference<"mutation">("sources:markSourcesUsed");
+const listCitableSources = makeFunctionReference<
+  "query",
+  { runId: Id<"researchRuns"> },
+  Array<{ canonicalUrl: string }>
+>("sources:listCitableSourcesForRun");
 const assertLive = makeFunctionReference<"mutation">("firecrawlJobs:assertToolCallLive");
 
 function fileStem(title: string): string {
@@ -74,7 +79,13 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
       };
     }
 
-    const allowedUrls = new Set(started.allowedUrls);
+    const citableSources = await context.ctx.runQuery(listCitableSources, {
+      runId: context.run._id,
+    });
+    const citableUrls = new Set(citableSources.map((source) => source.canonicalUrl));
+    const allowedUrls = new Set(
+      started.allowedUrls.filter((url) => citableUrls.has(url)),
+    );
     const markdown = sanitizeReportMarkdown(
       context.args.markdownContent as string,
       allowedUrls,
@@ -100,7 +111,7 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
       await context.ctx.storage.delete(markdownResult.previousStorageId);
     }
 
-    const usedUrls = started.allowedUrls.filter((url) => markdown.includes(url));
+    const usedUrls = Array.from(allowedUrls).filter((url) => markdown.includes(url));
     if (usedUrls.length > 0) {
       await context.ctx.runMutation(markSourcesUsed, {
         runId: context.run._id,

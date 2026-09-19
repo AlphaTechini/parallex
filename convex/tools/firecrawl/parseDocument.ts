@@ -5,6 +5,7 @@ import type { SourceInput } from "../../sources";
 import type { ExecutorResult, ToolExecutionContext } from "../types";
 import {
   asProviderDocument,
+  assertDocumentTargetStatus,
   documentEvidence,
   documentSource,
   persistAndBuildImmediateResult,
@@ -59,6 +60,7 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
               : undefined,
       });
       const providerDocument = asProviderDocument(document);
+      assertDocumentTargetStatus(providerDocument);
       const source = documentSource(
         providerDocument,
         checked.url.toString(),
@@ -104,6 +106,7 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
       },
     );
     const providerDocument = asProviderDocument(document);
+    assertDocumentTargetStatus(providerDocument);
     const attachmentUrl = `attachment://${attachment.id}/${encodeURIComponent(attachment.fileName)}`;
     const evidence = pageEvidence(providerDocument as Record<string, unknown>) ?? documentEvidence(providerDocument);
     const source: SourceInput = {

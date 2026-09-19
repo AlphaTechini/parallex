@@ -239,6 +239,8 @@ function addPage(pdf: PDFDocument): { page: PDFPage; y: number } {
   return { page, y: PAGE_HEIGHT - TOP_MARGIN };
 }
 
+type PageCursor = { page: PDFPage; y: number };
+
 function drawWrapped(
   page: PDFPage,
   text: string,
@@ -257,46 +259,153 @@ function drawWrapped(
   return current;
 }
 
+function tableRowHeight(rendered: string[][], offset: number, lineCount: number): number {
+  return Math.max(
+    20,
+    ...rendered.map((lines) => Math.max(1, Math.min(lineCount, lines.length - offset)) * 12 + 8),
+  );
+}
+
+function maxTableLines(available: number): number {
+  if (available < 20) return 0;
+  return Math.max(1, Math.floor((available - 8) / 12));
+}
+
+function drawTableSegment(
+  cursor: PageCursor,
+  rendered: string[][],
+  fonts: FontBundle,
+  offset: number,
+  lineCount: number,
+  columns: number,
+  x: number,
+  width: number,
+  isHeader: boolean,
+): PageCursor {
+  const columnWidth = width / Math.max(1, columns);
+  const height = tableRowHeight(rendered, offset, lineCount);
+  cursor.page.drawRectangle({
+    x,
+    y: cursor.y - height + 3,
+    width,
+    height,
+    color: isHeader ? rgb(0.93, 0.95, 0.98) : rgb(1, 1, 1),
+    borderColor: rgb(0.78, 0.81, 0.86),
+    borderWidth: 0.5,
+  });
+  for (let column = 0; column < columns; column += 1) {
+    const cellLines = rendered[column]?.slice(offset, offset + lineCount) ?? [""];
+    if (cellLines.length === 0) cellLines.push("");
+    for (let line = 0; line < cellLines.length; line += 1) {
+      cursor.page.drawText(cellLines[line], {
+        x: x + column * columnWidth + 6,
+        y: cursor.y - 12 - line * 12,
+        size: 8.5,
+        font: fonts.body,
+        color: rgb(0.12, 0.14, 0.18),
+      });
+    }
+  }
+  cursor.y -= height;
+  return cursor;
+}
+
+function drawTableHeader(
+  cursor: PageCursor,
+  rendered: string[][],
+  fonts: FontBundle,
+  columns: number,
+  x: number,
+  width: number,
+  newPage: () => PageCursor,
+): PageCursor {
+  const totalLines = Math.max(1, ...rendered.map((lines) => lines.length));
+  let offset = 0;
+  let current = cursor;
+  while (offset < totalLines) {
+    const available = current.y - BOTTOM_MARGIN;
+    const lineCapacity = maxTableLines(available);
+    if (lineCapacity === 0) {
+      current = newPage();
+      continue;
+    }
+    const lineCount = Math.min(totalLines - offset, lineCapacity);
+    current = drawTableSegment(
+      current,
+      rendered,
+      fonts,
+      offset,
+      lineCount,
+      columns,
+      x,
+      width,
+      true,
+    );
+    offset += lineCount;
+    if (offset < totalLines) current = newPage();
+  }
+  return current;
+}
+
 function drawTable(
-  page: PDFPage,
+  cursor: PageCursor,
   rows: string[][],
   fonts: FontBundle,
   x: number,
-  y: number,
   width: number,
-): number {
-  if (rows.length === 0) return y;
+  newPage: () => PageCursor,
+): PageCursor {
+  if (rows.length === 0) return cursor;
   const columns = Math.max(...rows.map((row) => row.length));
   const columnWidth = width / Math.max(1, columns);
-  let current = y;
-  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-    const row = rows[rowIndex];
-    const rendered = row.map((cell) => wrapText(cell, fonts.body, 8.5, columnWidth - 12, fonts.fallback));
-    const height = Math.max(18, ...rendered.map((lines) => lines.length * 12 + 8));
-    page.drawRectangle({
-      x,
-      y: current - height + 3,
-      width,
-      height,
-      color: rowIndex === 0 ? rgb(0.93, 0.95, 0.98) : rgb(1, 1, 1),
-      borderColor: rgb(0.78, 0.81, 0.86),
-      borderWidth: 0.5,
-    });
-    for (let column = 0; column < columns; column += 1) {
-      const cellLines = rendered[column] ?? [""];
-      for (let line = 0; line < cellLines.length; line += 1) {
-        page.drawText(cellLines[line], {
-          x: x + column * columnWidth + 6,
-          y: current - 12 - line * 12,
-          size: 8.5,
-          font: fonts.body,
-          color: rgb(0.12, 0.14, 0.18),
-        });
+  const renderedRows = rows.map((row) =>
+    row.map((cell) => wrapText(cell, fonts.body, 8.5, columnWidth - 12, fonts.fallback)),
+  );
+  let current = drawTableHeader(cursor, renderedRows[0], fonts, columns, x, width, newPage);
+
+  for (let rowIndex = 1; rowIndex < renderedRows.length; rowIndex += 1) {
+    const rendered = renderedRows[rowIndex];
+    const totalLines = Math.max(1, ...rendered.map((lines) => lines.length));
+    let offset = 0;
+    let canMoveWholeRow = true;
+    while (offset < totalLines) {
+      const available = current.y - BOTTOM_MARGIN;
+      const fullHeight = tableRowHeight(rendered, offset, totalLines - offset);
+      if (offset === 0 && canMoveWholeRow && fullHeight > available) {
+        current = newPage();
+        current = drawTableHeader(current, renderedRows[0], fonts, columns, x, width, newPage);
+        canMoveWholeRow = false;
+        continue;
+      }
+      const lineCapacity = maxTableLines(available);
+      if (lineCapacity === 0) {
+        current = newPage();
+        current = drawTableHeader(current, renderedRows[0], fonts, columns, x, width, newPage);
+        canMoveWholeRow = false;
+        continue;
+      }
+      const lineCount = Math.min(totalLines - offset, lineCapacity);
+      current = drawTableSegment(
+        current,
+        rendered,
+        fonts,
+        offset,
+        lineCount,
+        columns,
+        x,
+        width,
+        false,
+      );
+      offset += lineCount;
+      if (offset < totalLines) {
+        current = newPage();
+        current = drawTableHeader(current, renderedRows[0], fonts, columns, x, width, newPage);
+        canMoveWholeRow = false;
       }
     }
-    current -= height;
   }
-  return current - 10;
+  current.y -= 10;
+  return current;
 }
 
 export async function renderReportPdf(input: {
@@ -311,9 +420,10 @@ export async function renderReportPdf(input: {
   let state = addPage(pdf);
   pages.push(state.page);
 
-  const newPage = () => {
+  const newPage = (): PageCursor => {
     state = addPage(pdf);
     pages.push(state.page);
+    return state;
   };
   const ensure = (height: number) => {
     if (state.y - height < BOTTOM_MARGIN) newPage();
@@ -348,7 +458,7 @@ export async function renderReportPdf(input: {
     }
     if (block.kind === "table") {
       ensure(40);
-      state.y = drawTable(state.page, block.rows, fonts, MARGIN_X, state.y, CONTENT_WIDTH);
+      state = drawTable(state, block.rows, fonts, MARGIN_X, CONTENT_WIDTH, newPage);
       continue;
     }
     if (block.kind === "rule") {

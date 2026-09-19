@@ -2,17 +2,25 @@
 
 import { makeFunctionReference } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalAction, type ActionCtx } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { getFirecrawlClient, safeProviderError, assertPublicUrlShape } from "./lib/firecrawlClient";
 import type { SourceInput } from "./sources";
 import type { ProviderDocument } from "./tools/firecrawl/shared";
 import {
   asProviderDocument,
-  boundedJson,
+  assertDocumentTargetStatus,
   documentSource,
+  isTargetStatusError,
   resultDocumentList,
   textValue,
 } from "./tools/firecrawl/shared";
+import {
+  boundedJson,
+  boundedJsonString,
+  FIRECRAWL_OUTPUT_BUDGET,
+  MAX_DOCUMENT_EVIDENCE_CHARS,
+  MAX_RESULT_DOCUMENTS,
+} from "./tools/firecrawl/outputBudget";
 import { v } from "convex/values";
 
 type PollContext =
@@ -65,7 +73,12 @@ const completeJob = makeFunctionReference<
 >("firecrawlJobs:completeJob");
 const failJob = makeFunctionReference<
   "mutation",
-  { providerJobId: string; errorCode: string },
+  {
+    providerJobId: string;
+    errorCode: string;
+    retryable?: boolean;
+    safeMessage?: string;
+  },
   {
     active: boolean;
     runId: Id<"researchRuns">;
@@ -73,24 +86,6 @@ const failJob = makeFunctionReference<
     toolCallId: Id<"toolCalls">;
   }
 >("firecrawlJobs:failJob");
-const completeToolCall = makeFunctionReference<
-  "mutation",
-  {
-    toolCallId: Id<"toolCalls">;
-    status: "succeeded" | "failed";
-    outputJson?: string;
-    code?: string;
-    retryable?: boolean;
-    safeMessage?: string;
-  },
-  { ok: boolean; alreadyTerminal: boolean }
->("workers/runMutations:completeToolCall");
-const assertRunCanDrive = makeFunctionReference<
-  "mutation",
-  { runId: Id<"researchRuns"> },
-  { ok: boolean; generation: number }
->("firecrawlJobs:assertRunCanDrive");
-const driveRun = makeFunctionReference<"action">("workers/runWorker:drive");
 const pollAgain = makeFunctionReference<
   "action",
   { providerJobId: string },
@@ -99,6 +94,27 @@ const pollAgain = makeFunctionReference<
 
 function jobDocuments(status: Record<string, unknown>): ProviderDocument[] {
   return resultDocumentList(status.data);
+}
+
+function validJobDocuments(documents: ProviderDocument[]): {
+  documents: ProviderDocument[];
+  rejectedCount: number;
+} {
+  const valid: ProviderDocument[] = [];
+  let rejectedCount = 0;
+  for (const document of documents) {
+    try {
+      assertDocumentTargetStatus(document);
+      valid.push(document);
+    } catch (error) {
+      if (!isTargetStatusError(error)) throw error;
+      rejectedCount += 1;
+    }
+  }
+  if (documents.length > 0 && valid.length === 0) {
+    throw new Error("FIRECRAWL_TARGET_STATUS_INVALID");
+  }
+  return { documents: valid, rejectedCount };
 }
 
 function providerSources(
@@ -134,12 +150,13 @@ function providerSources(
           sourceType: "other",
           excerpt: serialized.slice(0, 2_000),
           citationLabel: url,
+          evidenceCompleteness: "incomplete",
           retrievedAt: Date.now(),
         });
       }
     }
   }
-  return sources.slice(0, 100);
+  return sources.slice(0, MAX_RESULT_DOCUMENTS);
 }
 
 function extractUrls(value: unknown, found = new Set<string>()): string[] {
@@ -163,7 +180,8 @@ function statusSnapshot(
   context: Extract<PollContext, { active: true }>,
   status: Record<string, unknown>,
 ) {
-  const documents = jobDocuments(status);
+  const documentResult = validJobDocuments(jobDocuments(status));
+  const documents = documentResult.documents.slice(0, MAX_RESULT_DOCUMENTS);
   const sources = providerSources(context, documents);
   const output = {
     ok: true,
@@ -172,16 +190,16 @@ function statusSnapshot(
     completedItems: typeof status.completed === "number" ? status.completed : undefined,
     totalItems: typeof status.total === "number" ? status.total : undefined,
     creditsUsed: typeof status.creditsUsed === "number" ? status.creditsUsed : undefined,
-    documents: documents.slice(0, 100).map((document) => ({
+    documents: documents.map((document) => boundedJson({
       url: document.metadata?.url ?? document.metadata?.sourceURL ?? document.url,
       title: document.metadata?.title ?? document.title,
       description: document.metadata?.description ?? document.description,
-      markdown: textValue(document.markdown, 8_000),
+      markdown: textValue(document.markdown, MAX_DOCUMENT_EVIDENCE_CHARS),
       json: boundedJson(document.json, 20_000),
       summary: textValue(document.summary, 4_000),
       answer: textValue(document.answer, 4_000),
       changeTracking: boundedJson(document.changeTracking, 12_000),
-    })),
+    }, MAX_DOCUMENT_EVIDENCE_CHARS + 1_500)),
     data:
       context.toolCall.functionName === "firecrawl_agent_gather"
         ? boundedJson(status.data, 80_000)
@@ -196,9 +214,15 @@ function statusSnapshot(
       retrievalMethod: context.toolCall.functionName,
       citationLabel: source.citationLabel,
       pageStatusCode: source.pageStatusCode,
+      evidenceCompleteness: source.evidenceCompleteness,
     })),
+    rejectedDocuments: documentResult.rejectedCount,
   };
-  return { output, sources, documents };
+  return {
+    output: boundedJson(output, FIRECRAWL_OUTPUT_BUDGET) as Record<string, unknown>,
+    sources,
+    documents,
+  };
 }
 
 function stateOf(status: Record<string, unknown>): "running" | "completed" | "failed" {
@@ -219,36 +243,11 @@ function progressOf(status: Record<string, unknown>) {
   };
 }
 
-async function safeCompleteFailure(
-  ctx: ActionCtx,
-  toolCallId: Id<"toolCalls">,
-  failure: { code: string; retryable: boolean; safeMessage: string },
-) {
-  try {
-    await ctx.runMutation(completeToolCall, {
-      toolCallId,
-      status: "failed",
-      code: failure.code,
-      retryable: failure.retryable,
-      safeMessage: failure.safeMessage,
-    });
-  } catch {
-    return;
-  }
-}
-
 export const poll = internalAction({
   args: { providerJobId: v.string() },
   handler: async (ctx, args) => {
     const prepared = await ctx.runMutation(preparePoll, args);
     if (!prepared.active) {
-      if (prepared.reason === "run_not_live") {
-        await safeCompleteFailure(ctx, prepared.job.toolCallId, {
-          code: "run_not_live",
-          retryable: false,
-          safeMessage: "The research run is no longer active.",
-        });
-      }
       return { ok: true, active: false };
     }
 
@@ -296,8 +295,9 @@ export const poll = internalAction({
         const failed = await ctx.runMutation(failJob, {
           providerJobId: args.providerJobId,
           errorCode: failure.code,
+          retryable: failure.retryable,
+          safeMessage: failure.safeMessage,
         });
-        if (failed.active) await safeCompleteFailure(ctx, failed.toolCallId, failure);
         return { ok: false, active: failed.active, state };
       }
 
@@ -305,47 +305,12 @@ export const poll = internalAction({
       const progress = progressOf(status);
       const completed = await ctx.runMutation(completeJob, {
         providerJobId: args.providerJobId,
-        outputJson: JSON.stringify(normalized.output),
+        outputJson: boundedJsonString(normalized.output, FIRECRAWL_OUTPUT_BUDGET),
         sources: normalized.sources,
         ...progress,
       });
       if (!completed.active || completed.runId === undefined || completed.generation === undefined) {
         return { ok: true, active: false, state };
-      }
-      const sourceIds = new Map(
-        (completed.sources ?? []).map((source) => [source.canonicalUrl, source.sourceId]),
-      );
-      const finalOutput = {
-        ...normalized.output,
-        sources: normalized.sources.map((source) => ({
-          sourceId: sourceIds.get(source.canonicalUrl),
-          url: source.canonicalUrl,
-          title: source.title,
-          description: source.description,
-          publisher: source.publisher,
-          publishedAt: source.publishedAt,
-          retrievedAt: source.retrievedAt,
-          retrievalMethod: prepared.toolCall.functionName,
-          excerpt: source.excerpt,
-          citationLabel: source.citationLabel,
-          pageStatusCode: source.pageStatusCode,
-        })),
-      };
-      const completion = await ctx.runMutation(completeToolCall, {
-        toolCallId: completed.toolCallId!,
-        status: "succeeded",
-        outputJson: JSON.stringify(boundedJson(finalOutput)),
-      });
-      if (!completion.alreadyTerminal) {
-        const continuation = await ctx.runMutation(assertRunCanDrive, {
-          runId: completed.runId,
-        });
-        if (continuation.ok) {
-          await ctx.scheduler.runAfter(0, driveRun, {
-            runId: completed.runId,
-            generation: continuation.generation + 1,
-          });
-        }
       }
       return { ok: true, active: true, state };
     } catch (error) {
@@ -353,8 +318,9 @@ export const poll = internalAction({
       const failed = await ctx.runMutation(failJob, {
         providerJobId: args.providerJobId,
         errorCode: failure.code,
+        retryable: failure.retryable,
+        safeMessage: failure.safeMessage,
       });
-      if (failed.active) await safeCompleteFailure(ctx, failed.toolCallId, failure);
       return { ok: false, active: failed.active, state: "failed" as const };
     }
   },

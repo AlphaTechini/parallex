@@ -78,6 +78,7 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
             excerpt: textValue(record.abstract, 6_000),
             evidence: textValue(record.abstract, 6_000),
             citationLabel: textValue(record.title, 300),
+            evidenceCompleteness: "incomplete" as const,
             retrievedAt: Date.now(),
           };
         } catch {

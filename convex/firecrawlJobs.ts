@@ -1,14 +1,25 @@
+import { makeFunctionReference } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   internalMutation,
   type MutationCtx,
 } from "./_generated/server";
 import { validateToolArguments, isToolFunctionName } from "./tools/definitions";
+import {
+  boundedJsonString,
+  FIRECRAWL_OUTPUT_BUDGET,
+} from "./tools/firecrawl/outputBudget";
 import { upsertSourceRecords } from "./sources";
 import { v } from "convex/values";
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "canceled"]);
 const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "canceled", "closed"]);
+const TOOL_WATCHDOG_MS = 6 * 60 * 1000;
+
+const driveRun = makeFunctionReference<
+  "action",
+  { runId: Id<"researchRuns">; generation: number }
+>("workers/runWorker:drive");
 
 const capabilityValidator = v.union(
   v.literal("firecrawl_search_web"),
@@ -49,6 +60,9 @@ const sourceInputValidator = v.object({
   contentHash: v.optional(v.string()),
   excerpt: v.optional(v.string()),
   citationLabel: v.optional(v.string()),
+  evidenceCompleteness: v.optional(
+    v.union(v.literal("complete"), v.literal("incomplete")),
+  ),
 });
 
 type OwnedToolGraph = {
@@ -56,6 +70,12 @@ type OwnedToolGraph = {
   run: Doc<"researchRuns">;
   chat: Doc<"chats">;
   bot: Doc<"bots">;
+};
+
+type ToolFailure = {
+  code: string;
+  retryable: boolean;
+  safeMessage: string;
 };
 
 async function loadOwnedToolGraph(
@@ -90,6 +110,128 @@ function isRunLive(graph: OwnedToolGraph): boolean {
     graph.chat.status === "active" &&
     graph.bot.status === "active" &&
     graph.chat.activeRunId === graph.run._id
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function failureResult(failure: ToolFailure): string {
+  return JSON.stringify({
+    ok: false,
+    error: {
+      code: failure.code,
+      message: failure.safeMessage,
+      retryable: failure.retryable,
+    },
+  });
+}
+
+async function completeToolCallInTransaction(
+  ctx: MutationCtx,
+  graph: OwnedToolGraph,
+  completion:
+    | { status: "succeeded"; outputJson: string }
+    | { status: "failed"; failure: ToolFailure },
+): Promise<{ alreadyTerminal: boolean }> {
+  if (graph.call.status === "succeeded" || graph.call.status === "failed") {
+    return { alreadyTerminal: true };
+  }
+  if (graph.call.status !== "running") throw new Error("TOOL_CALL_NOT_RUNNING");
+
+  const resultJson =
+    completion.status === "succeeded"
+      ? completion.outputJson
+      : failureResult(completion.failure);
+  if (completion.status === "succeeded") {
+    try {
+      JSON.parse(resultJson);
+    } catch {
+      throw new Error("TOOL_OUTPUT_INVALID_JSON");
+    }
+    if (resultJson.length > FIRECRAWL_OUTPUT_BUDGET) {
+      throw new Error("FIRECRAWL_OUTPUT_TOO_LARGE");
+    }
+  }
+
+  await ctx.db.patch("toolCalls", graph.call._id, {
+    status: completion.status,
+    resultJson,
+    failureCode:
+      completion.status === "failed" ? completion.failure.code : undefined,
+    completedAt: Date.now(),
+  });
+  const events = await ctx.db
+    .query("runEvents")
+    .withIndex("by_tool_call", (q) => q.eq("toolCallId", graph.call._id))
+    .collect();
+  for (const event of events) {
+    await ctx.db.patch("runEvents", event._id, {
+      status: completion.status === "succeeded" ? "completed" : "failed",
+      safeDetail:
+        completion.status === "failed"
+          ? completion.failure.safeMessage
+          : event.safeDetail,
+    });
+  }
+
+  if (graph.call.originResponseId !== undefined && !TERMINAL_RUN_STATUSES.has(graph.run.status)) {
+    const siblings = (await ctx.db
+      .query("toolCalls")
+      .withIndex("by_run_requested", (q) => q.eq("runId", graph.run._id))
+      .collect()).filter((candidate) => candidate.originResponseId === graph.call.originResponseId);
+    const allTerminal = siblings.every(
+      (candidate) =>
+        candidate.status === "succeeded" || candidate.status === "failed",
+    );
+    if (allTerminal) {
+      await ctx.scheduler.runAfter(0, driveRun, {
+        runId: graph.run._id,
+        generation: graph.run.workerGeneration + 1,
+      });
+      await ctx.scheduler.runAfter(TOOL_WATCHDOG_MS, driveRun, {
+        runId: graph.run._id,
+        generation: graph.run.workerGeneration + 2,
+      });
+    }
+  }
+  return { alreadyTerminal: false };
+}
+
+async function repairRunningToolCall(
+  ctx: MutationCtx,
+  graph: OwnedToolGraph,
+  failure: ToolFailure,
+): Promise<void> {
+  if (graph.call.status !== "running") return;
+  await completeToolCallInTransaction(ctx, graph, { status: "failed", failure });
+}
+
+function outputWithSourceIds(
+  outputJson: string,
+  sources: Array<{ sourceId: Id<"researchSources">; canonicalUrl: string }>,
+): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(outputJson);
+  } catch {
+    throw new Error("FIRECRAWL_OUTPUT_INVALID_JSON");
+  }
+  if (!isRecord(parsed)) throw new Error("FIRECRAWL_OUTPUT_INVALID_SHAPE");
+  const sourceIds = new Map(sources.map((source) => [source.canonicalUrl, source.sourceId]));
+  const outputSources = parsed.sources;
+  const withIds = Array.isArray(outputSources)
+    ? outputSources.map((source) => {
+        if (!isRecord(source)) return source;
+        const url = typeof source.url === "string" ? source.url : undefined;
+        const sourceId = url === undefined ? undefined : sourceIds.get(url);
+        return sourceId === undefined ? source : { ...source, sourceId };
+      })
+    : outputSources;
+  return boundedJsonString(
+    { ...parsed, sources: withIds },
+    FIRECRAWL_OUTPUT_BUDGET,
   );
 }
 
@@ -246,14 +388,15 @@ export const preparePoll = internalMutation({
       .unique();
     if (job === null) throw new Error("FIRECRAWL_JOB_NOT_FOUND");
     const graph = await loadOwnedToolGraph(ctx, job.toolCallId);
-    if (
-      job.ownerId !== graph.run.ownerId ||
-      job.runId !== graph.run._id ||
-      job.status === "completed" ||
-      job.status === "failed" ||
-      job.status === "canceled" ||
-      job.status === "closed"
-    ) {
+    if (job.ownerId !== graph.run.ownerId || job.runId !== graph.run._id) {
+      throw new Error("FIRECRAWL_JOB_OWNERSHIP_INVALID");
+    }
+    if (TERMINAL_JOB_STATUSES.has(job.status)) {
+      await repairRunningToolCall(ctx, graph, {
+        code: "firecrawl_job_completion_recovery",
+        retryable: false,
+        safeMessage: "The Firecrawl job completed before its tool result was recorded.",
+      });
       return { active: false as const, reason: "terminal" as const, job };
     }
     if (!isRunLive(graph)) {
@@ -261,6 +404,11 @@ export const preparePoll = internalMutation({
         status: "canceled",
         lastErrorCode: "run_not_live",
         updatedAt: Date.now(),
+      });
+      await repairRunningToolCall(ctx, graph, {
+        code: "run_not_live",
+        retryable: false,
+        safeMessage: "The research run is no longer active.",
       });
       return { active: false as const, reason: "run_not_live" as const, job };
     }
@@ -298,12 +446,24 @@ export const recordProgress = internalMutation({
       .unique();
     if (job === null) throw new Error("FIRECRAWL_JOB_NOT_FOUND");
     const graph = await loadOwnedToolGraph(ctx, job.toolCallId);
-    if (TERMINAL_JOB_STATUSES.has(job.status)) return { active: false };
+    if (TERMINAL_JOB_STATUSES.has(job.status)) {
+      await repairRunningToolCall(ctx, graph, {
+        code: "firecrawl_job_completion_recovery",
+        retryable: false,
+        safeMessage: "The Firecrawl job completed before its tool result was recorded.",
+      });
+      return { active: false };
+    }
     if (!isRunLive(graph) || job.ownerId !== graph.run.ownerId) {
       await ctx.db.patch("firecrawlJobs", job._id, {
         status: "canceled",
         lastErrorCode: "run_not_live",
         updatedAt: Date.now(),
+      });
+      await repairRunningToolCall(ctx, graph, {
+        code: "run_not_live",
+        retryable: false,
+        safeMessage: "The research run is no longer active.",
       });
       return { active: false };
     }
@@ -337,6 +497,11 @@ export const completeJob = internalMutation({
     if (job === null) throw new Error("FIRECRAWL_JOB_NOT_FOUND");
     const graph = await loadOwnedToolGraph(ctx, job.toolCallId);
     if (TERMINAL_JOB_STATUSES.has(job.status)) {
+      await repairRunningToolCall(ctx, graph, {
+        code: "firecrawl_job_completion_recovery",
+        retryable: false,
+        safeMessage: "The Firecrawl job completed before its tool result was recorded.",
+      });
       return { active: false as const, reason: "terminal" as const };
     }
     if (!isRunLive(graph) || job.ownerId !== graph.run.ownerId) {
@@ -345,15 +510,34 @@ export const completeJob = internalMutation({
         lastErrorCode: "run_not_live",
         updatedAt: Date.now(),
       });
+      await repairRunningToolCall(ctx, graph, {
+        code: "run_not_live",
+        retryable: false,
+        safeMessage: "The research run is no longer active.",
+      });
       return { active: false as const, reason: "run_not_live" as const };
     }
-    if (args.outputJson.length > 190_000) throw new Error("FIRECRAWL_OUTPUT_TOO_LARGE");
+    if (args.outputJson.length > FIRECRAWL_OUTPUT_BUDGET) {
+      throw new Error("FIRECRAWL_OUTPUT_TOO_LARGE");
+    }
+    let parsedOutput: unknown;
+    try {
+      parsedOutput = JSON.parse(args.outputJson);
+    } catch {
+      throw new Error("FIRECRAWL_OUTPUT_INVALID_JSON");
+    }
+    if (!isRecord(parsedOutput)) throw new Error("FIRECRAWL_OUTPUT_INVALID_SHAPE");
     const persistedSources = await upsertSourceRecords(ctx, {
       ownerId: graph.run.ownerId,
       runId: graph.run._id,
       toolCallId: graph.call._id,
       retrievalMethod: job.capability,
       sources: args.sources,
+    });
+    const resultJson = outputWithSourceIds(args.outputJson, persistedSources);
+    await completeToolCallInTransaction(ctx, graph, {
+      status: "succeeded",
+      outputJson: resultJson,
     });
     await ctx.db.patch("firecrawlJobs", job._id, {
       status: "completed",
@@ -368,14 +552,19 @@ export const completeJob = internalMutation({
       runId: graph.run._id,
       generation: graph.run.workerGeneration,
       toolCallId: graph.call._id,
-      outputJson: args.outputJson,
+      outputJson: resultJson,
       sources: persistedSources,
     };
   },
 });
 
 export const failJob = internalMutation({
-  args: { providerJobId: v.string(), errorCode: v.string() },
+  args: {
+    providerJobId: v.string(),
+    errorCode: v.string(),
+    retryable: v.optional(v.boolean()),
+    safeMessage: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const job = await ctx.db
       .query("firecrawlJobs")
@@ -383,7 +572,18 @@ export const failJob = internalMutation({
       .unique();
     if (job === null) throw new Error("FIRECRAWL_JOB_NOT_FOUND");
     const graph = await loadOwnedToolGraph(ctx, job.toolCallId);
+    if (job.ownerId !== graph.run.ownerId || job.runId !== graph.run._id) {
+      throw new Error("FIRECRAWL_JOB_OWNERSHIP_INVALID");
+    }
+    const failure: ToolFailure = {
+      code: args.errorCode.slice(0, 200),
+      retryable: args.retryable ?? false,
+      safeMessage:
+        args.safeMessage?.slice(0, 2_000) ??
+        "Firecrawl could not complete the research request.",
+    };
     if (TERMINAL_JOB_STATUSES.has(job.status)) {
+      await repairRunningToolCall(ctx, graph, failure);
       return {
         active: false,
         runId: graph.run._id,
@@ -394,9 +594,10 @@ export const failJob = internalMutation({
     const active = isRunLive(graph) && job.ownerId === graph.run.ownerId;
     await ctx.db.patch("firecrawlJobs", job._id, {
       status: active ? "failed" : "canceled",
-      lastErrorCode: args.errorCode.slice(0, 200),
+      lastErrorCode: failure.code,
       updatedAt: Date.now(),
     });
+    await repairRunningToolCall(ctx, graph, failure);
     return {
       active,
       runId: graph.run._id,

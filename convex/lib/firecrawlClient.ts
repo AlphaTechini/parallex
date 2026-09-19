@@ -7,6 +7,7 @@ import { sanitizeErrorCode } from "./normalize";
 
 const MAX_PROVIDER_TIMEOUT_MS = 300_000;
 const MAX_GOAL_LENGTH = 2_000;
+const MAX_GOAL_URLS = 20;
 const PRIVATE_HOSTNAMES = new Set([
   "localhost",
   "localhost.localdomain",
@@ -159,8 +160,9 @@ export function normalizeGoal(value: string): string {
 
 export async function assertPublicUrlsInText(value: string): Promise<void> {
   const urls = value.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
+  if (urls.length > MAX_GOAL_URLS) throw new Error("TOO_MANY_GOAL_URLS");
   await Promise.all(
-    urls.slice(0, 20).map(async (candidate) => {
+    urls.map(async (candidate) => {
       await assertPublicUrl(candidate.replace(/[),.;]+$/, ""));
     }),
   );
@@ -213,9 +215,7 @@ export function safeProviderError(error: unknown): {
       : typeof error === "string"
         ? error
         : "";
-  const code = /^(?:INVALID_|PRIVATE_|ATTACHMENT_|FIRECRAWL_(?:INTERACTION|BROWSER|OUTPUT)|UNSUPPORTED_FIRECRAWL|PROVIDER_JOB_ID_MISSING)/.test(
-    rawMessage,
-  )
+  const code = /^(?:INVALID_|PRIVATE_|ATTACHMENT_|TOO_MANY_GOAL_URLS|FIRECRAWL_(?:INTERACTION|BROWSER|OUTPUT|TARGET_STATUS)|UNSUPPORTED_FIRECRAWL|PROVIDER_JOB_ID_MISSING)/.test(rawMessage)
     ? "validation_error"
     : sanitizeErrorCode(error);
   const retryable = ["timeout", "rate_limited", "provider_error", "unknown_error"].includes(code);

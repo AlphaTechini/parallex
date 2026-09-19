@@ -9,8 +9,24 @@ import {
 } from "../../lib/firecrawlClient";
 import { canonicalizeUrl } from "../../lib/normalize";
 import type { Doc } from "../../_generated/dataModel";
-import type { SourceInput, ResearchSourceType } from "../../sources";
+import type {
+  EvidenceCompleteness,
+  SourceInput,
+  ResearchSourceType,
+} from "../../sources";
 import type { ExecutorResult, ToolExecutionContext } from "../types";
+import {
+  boundedJsonString,
+  FIRECRAWL_OUTPUT_BUDGET,
+  MAX_DOCUMENT_EVIDENCE_CHARS,
+} from "./outputBudget";
+
+export {
+  boundedJson,
+  boundedJsonString,
+  FIRECRAWL_OUTPUT_BUDGET,
+  MAX_DOCUMENT_EVIDENCE_CHARS,
+} from "./outputBudget";
 
 const persistSources = makeFunctionReference<"mutation">(
   "sources:upsertSources",
@@ -72,14 +88,71 @@ function metadataString(metadata: Record<string, unknown> | undefined, key: stri
 
 export function documentEvidence(document: ProviderDocument): string | undefined {
   return (
-    textValue(document.markdown, 8_000) ??
-    textValue(document.answer, 8_000) ??
-    textValue(document.highlights, 8_000) ??
-    textValue(document.summary, 8_000) ??
-    textValue(document.html, 8_000) ??
-    textValue(document.rawHtml, 8_000) ??
-    textValue(document.json === undefined ? undefined : JSON.stringify(document.json), 8_000)
+    textValue(document.markdown, MAX_DOCUMENT_EVIDENCE_CHARS) ??
+    textValue(document.answer, MAX_DOCUMENT_EVIDENCE_CHARS) ??
+    textValue(document.highlights, MAX_DOCUMENT_EVIDENCE_CHARS) ??
+    textValue(document.summary, MAX_DOCUMENT_EVIDENCE_CHARS) ??
+    textValue(document.html, MAX_DOCUMENT_EVIDENCE_CHARS) ??
+    textValue(document.rawHtml, MAX_DOCUMENT_EVIDENCE_CHARS) ??
+    textValue(
+      document.json === undefined
+        ? undefined
+        : boundedJsonString(document.json, MAX_DOCUMENT_EVIDENCE_CHARS),
+      MAX_DOCUMENT_EVIDENCE_CHARS,
+    )
   );
+}
+
+export function documentStatusCode(document: ProviderDocument): number | undefined {
+  const statusCode =
+    typeof document.statusCode === "number"
+      ? document.statusCode
+      : typeof document.metadata?.statusCode === "number"
+        ? document.metadata.statusCode
+        : undefined;
+  if (statusCode === undefined || !Number.isInteger(statusCode)) return undefined;
+  return statusCode >= 100 && statusCode <= 599 ? statusCode : undefined;
+}
+
+export function assertDocumentTargetStatus(document: ProviderDocument): void {
+  const statusCode = documentStatusCode(document);
+  if (statusCode !== undefined && statusCode >= 400) {
+    throw new Error("FIRECRAWL_TARGET_STATUS_INVALID");
+  }
+}
+
+export function isTargetStatusError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    error.message === "FIRECRAWL_TARGET_STATUS_INVALID"
+  );
+}
+
+function hasFetchedDocumentEvidence(document: ProviderDocument): boolean {
+  return (
+    typeof document.markdown === "string" ||
+    typeof document.html === "string" ||
+    typeof document.rawHtml === "string" ||
+    document.json !== undefined
+  );
+}
+
+function evidenceCompleteness(
+  document: ProviderDocument,
+  retrievalMethod: Doc<"researchSources">["retrievalMethod"],
+): EvidenceCompleteness {
+  if (
+    retrievalMethod === "firecrawl_search_web" ||
+    retrievalMethod === "firecrawl_search_research" ||
+    retrievalMethod === "firecrawl_search_developer" ||
+    retrievalMethod === "firecrawl_map_site" ||
+    retrievalMethod === "firecrawl_agent_gather"
+  ) {
+    return hasFetchedDocumentEvidence(document) ? "complete" : "incomplete";
+  }
+  return "complete";
 }
 
 function safeSourceUrl(value: string): string | undefined {
@@ -104,6 +177,7 @@ export function documentSource(
     metadataString(metadata, "sourceURL") ??
     metadataString(metadata, "url") ??
     fallbackUrl;
+  assertDocumentTargetStatus(document);
   if (!candidateUrl) return undefined;
 
   const canonicalUrl = safeSourceUrl(candidateUrl);
@@ -126,14 +200,10 @@ export function documentSource(
       }
     })(),
     publishedAt: parsePublishedAt(metadata),
-    pageStatusCode:
-      typeof document.statusCode === "number"
-        ? document.statusCode
-        : typeof metadata?.statusCode === "number"
-          ? metadata.statusCode
-          : undefined,
+    pageStatusCode: documentStatusCode(document),
     excerpt: evidence,
     evidence,
+    evidenceCompleteness: evidenceCompleteness(document, retrievalMethod),
     providerData: {
       links: Array.isArray(document.links) ? document.links.slice(0, 50) : undefined,
       changeTracking: document.changeTracking,
@@ -165,13 +235,6 @@ export function resultDocumentList(value: unknown): ProviderDocument[] {
   return documents;
 }
 
-export function boundedJson(value: unknown, maxChars = 180_000): unknown {
-  const serialized = JSON.stringify(value);
-  if (serialized === undefined) return null;
-  if (serialized.length <= maxChars) return value;
-  return serialized.slice(0, maxChars);
-}
-
 export async function persistAndBuildImmediateResult(
   context: ToolExecutionContext,
   capability: Doc<"researchSources">["retrievalMethod"],
@@ -198,6 +261,7 @@ export async function persistAndBuildImmediateResult(
       contentHash: source.contentHash,
       excerpt: source.excerpt,
       citationLabel: source.citationLabel,
+      evidenceCompleteness: source.evidenceCompleteness,
     })),
   });
   const sourceIdsByUrl = new Map(
@@ -219,6 +283,7 @@ export async function persistAndBuildImmediateResult(
     excerpt: source.evidence,
     citationLabel: source.citationLabel,
     pageStatusCode: source.pageStatusCode,
+    evidenceCompleteness: source.evidenceCompleteness,
   }));
   const output = {
     ok: true,
@@ -226,7 +291,10 @@ export async function persistAndBuildImmediateResult(
     sources: normalizedSources,
     ...payload,
   };
-  return { kind: "immediate", outputJson: JSON.stringify(boundedJson(output)) };
+  return {
+    kind: "immediate",
+    outputJson: boundedJsonString(output, FIRECRAWL_OUTPUT_BUDGET),
+  };
 }
 
 export async function assertToolCallIsLive(context: ToolExecutionContext): Promise<void> {

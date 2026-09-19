@@ -14,6 +14,11 @@ export type ResearchSourceType =
   | "video"
   | "other";
 
+export type EvidenceCompleteness = "complete" | "incomplete";
+
+export const EVIDENCE_COMPLETE_MARKER = "evidence_complete";
+export const EVIDENCE_INCOMPLETE_MARKER = "evidence_incomplete";
+
 export type SourceInput = {
   canonicalUrl: string;
   title?: string;
@@ -25,6 +30,7 @@ export type SourceInput = {
   contentHash?: string;
   excerpt?: string;
   citationLabel?: string;
+  evidenceCompleteness?: EvidenceCompleteness;
 };
 
 const sourceTypeValidator = v.union(
@@ -50,6 +56,9 @@ const sourceInputValidator = v.object({
   contentHash: v.optional(v.string()),
   excerpt: v.optional(v.string()),
   citationLabel: v.optional(v.string()),
+  evidenceCompleteness: v.optional(
+    v.union(v.literal("complete"), v.literal("incomplete")),
+  ),
 });
 
 const MAX_TITLE = 500;
@@ -57,6 +66,19 @@ const MAX_DESCRIPTION = 1_000;
 const MAX_EXCERPT = 6_000;
 const MAX_PUBLISHER = 300;
 const MAX_CITATION_LABEL = 300;
+
+const FETCHED_RETRIEVAL_METHODS = new Set<string>([
+  "firecrawl_scrape_page",
+  "firecrawl_batch_scrape",
+  "firecrawl_crawl_site",
+  "firecrawl_parse_document",
+  "firecrawl_extract_structured",
+  "firecrawl_query_page",
+  "firecrawl_interact_page",
+  "firecrawl_browser_research",
+  "firecrawl_extract_media",
+  "firecrawl_compare_page_change",
+]);
 
 function bounded(value: string | undefined, limit: number): string | undefined {
   const trimmed = value?.replace(/\u0000/g, "").trim();
@@ -78,7 +100,10 @@ function normalizeSourceUrl(value: string): string {
   }
 }
 
-function sourceCandidate(value: SourceInput): SourceInput {
+function sourceCandidate(
+  value: SourceInput,
+  retrievalMethod: Doc<"researchSources">["retrievalMethod"],
+): SourceInput {
   return {
     canonicalUrl: normalizeSourceUrl(value.canonicalUrl),
     title: bounded(value.title, MAX_TITLE),
@@ -99,7 +124,29 @@ function sourceCandidate(value: SourceInput): SourceInput {
     contentHash: bounded(value.contentHash, 200),
     excerpt: bounded(value.excerpt, MAX_EXCERPT),
     citationLabel: bounded(value.citationLabel, MAX_CITATION_LABEL),
+    evidenceCompleteness:
+      value.evidenceCompleteness ??
+      (FETCHED_RETRIEVAL_METHODS.has(retrievalMethod) ? "complete" : "incomplete"),
   };
+}
+
+export function isEvidenceComplete(source: {
+  disposition: Doc<"researchSources">["disposition"];
+  rejectionReason?: string;
+  retrievalMethod: Doc<"researchSources">["retrievalMethod"];
+}): boolean {
+  if (source.disposition === "rejected" || source.disposition === "failed") return false;
+  if (source.rejectionReason === EVIDENCE_COMPLETE_MARKER) return true;
+  if (source.rejectionReason !== undefined) return false;
+  return FETCHED_RETRIEVAL_METHODS.has(source.retrievalMethod);
+}
+
+export function isCitableSource(source: {
+  disposition: Doc<"researchSources">["disposition"];
+  rejectionReason?: string;
+  retrievalMethod: Doc<"researchSources">["retrievalMethod"];
+}): boolean {
+  return isEvidenceComplete(source);
 }
 
 export async function upsertSourceRecords(
@@ -144,7 +191,7 @@ export async function upsertSourceRecords(
 
   const byUrl = new Map<string, SourceInput>();
   for (const input of args.sources) {
-    const candidate = sourceCandidate(input);
+    const candidate = sourceCandidate(input, args.retrievalMethod);
     if (!byUrl.has(candidate.canonicalUrl)) byUrl.set(candidate.canonicalUrl, candidate);
   }
 
@@ -162,21 +209,36 @@ export async function upsertSourceRecords(
       if (existing.ownerId !== args.ownerId || existing.canonicalUrl !== candidate.canonicalUrl) {
         throw new Error("SOURCE_OWNERSHIP_INVALID");
       }
+      const incomingComplete = candidate.evidenceCompleteness === "complete";
+      const existingComplete = isEvidenceComplete(existing);
+      const preserveExisting = existingComplete && !incomingComplete;
+      const evidenceMarker = incomingComplete || existingComplete
+        ? EVIDENCE_COMPLETE_MARKER
+        : EVIDENCE_INCOMPLETE_MARKER;
       await ctx.db.patch("researchSources", existing._id, {
         toolCallId: args.toolCallId ?? existing.toolCallId,
-        title: candidate.title ?? existing.title,
-        description: candidate.description ?? existing.description,
-        sourceType: candidate.sourceType,
-        publisher: candidate.publisher ?? existing.publisher,
-        publishedAt: candidate.publishedAt ?? existing.publishedAt,
-        pageStatusCode: candidate.pageStatusCode ?? existing.pageStatusCode,
-        contentHash: candidate.contentHash ?? existing.contentHash,
-        excerpt: candidate.excerpt ?? existing.excerpt,
-        citationLabel: candidate.citationLabel ?? existing.citationLabel,
+        title: preserveExisting ? existing.title : candidate.title ?? existing.title,
+        description: preserveExisting
+          ? existing.description
+          : candidate.description ?? existing.description,
+        sourceType: preserveExisting ? existing.sourceType : candidate.sourceType,
+        publisher: preserveExisting ? existing.publisher : candidate.publisher ?? existing.publisher,
+        publishedAt: preserveExisting ? existing.publishedAt : candidate.publishedAt ?? existing.publishedAt,
+        pageStatusCode: preserveExisting
+          ? existing.pageStatusCode
+          : candidate.pageStatusCode ?? existing.pageStatusCode,
+        contentHash: preserveExisting ? existing.contentHash : candidate.contentHash ?? existing.contentHash,
+        excerpt: preserveExisting ? existing.excerpt : candidate.excerpt ?? existing.excerpt,
+        citationLabel: preserveExisting
+          ? existing.citationLabel
+          : candidate.citationLabel ?? existing.citationLabel,
         retrievedAt: now,
-        retrievalMethod: args.retrievalMethod,
-        disposition: existing.disposition === "used" ? "used" : "candidate",
-        rejectionReason: undefined,
+        retrievalMethod: preserveExisting ? existing.retrievalMethod : args.retrievalMethod,
+        disposition:
+          (incomingComplete || existingComplete) && existing.disposition === "used"
+            ? "used"
+            : "candidate",
+        rejectionReason: evidenceMarker,
       });
       result.push({ sourceId: existing._id, canonicalUrl: candidate.canonicalUrl });
       continue;
@@ -200,6 +262,10 @@ export async function upsertSourceRecords(
       excerpt: candidate.excerpt,
       disposition: "candidate",
       citationLabel: candidate.citationLabel,
+      rejectionReason:
+        candidate.evidenceCompleteness === "complete"
+          ? EVIDENCE_COMPLETE_MARKER
+          : EVIDENCE_INCOMPLETE_MARKER,
     });
     result.push({ sourceId, canonicalUrl: candidate.canonicalUrl });
   }
@@ -256,6 +322,22 @@ export const listSourcesForRun = internalQuery({
   },
 });
 
+export const listCitableSourcesForRun = internalQuery({
+  args: { runId: v.id("researchRuns") },
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get("researchRuns", args.runId);
+    if (run === null) throw new Error("NOT_FOUND");
+    const sources = await ctx.db
+      .query("researchSources")
+      .withIndex("by_run_retrieved", (q) => q.eq("runId", args.runId))
+      .order("asc")
+      .collect();
+    return sources
+      .filter((source) => source.ownerId === run.ownerId && isCitableSource(source))
+      .map((source) => ({ canonicalUrl: source.canonicalUrl }));
+  },
+});
+
 export const markSourcesUsed = internalMutation({
   args: {
     runId: v.id("researchRuns"),
@@ -271,8 +353,15 @@ export const markSourcesUsed = internalMutation({
       .collect();
     let marked = 0;
     for (const source of sources) {
-      if (source.ownerId === run.ownerId && normalized.has(source.canonicalUrl)) {
-        await ctx.db.patch("researchSources", source._id, { disposition: "used" });
+      if (
+        source.ownerId === run.ownerId &&
+        normalized.has(source.canonicalUrl) &&
+        isCitableSource(source)
+      ) {
+        await ctx.db.patch("researchSources", source._id, {
+          disposition: "used",
+          rejectionReason: EVIDENCE_COMPLETE_MARKER,
+        });
         marked += 1;
       }
     }
