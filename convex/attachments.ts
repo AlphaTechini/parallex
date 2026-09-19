@@ -120,6 +120,14 @@ export const finalizeResearchUpload = mutation({
       throw new Error("UNSUPPORTED_RESEARCH_FILE");
     }
 
+    const existingStorageOwnership = await ctx.db
+      .query("storageOwnership")
+      .withIndex("by_storage", (q) => q.eq("storageId", args.storageId))
+      .unique();
+    if (existingStorageOwnership !== null) {
+      throw new Error("STORAGE_ALREADY_CLAIMED");
+    }
+
     const existingStorageClaim = await ctx.db
       .query("researchUploadClaims")
       .withIndex("by_storage", (q) => q.eq("storageId", args.storageId))
@@ -145,6 +153,12 @@ export const finalizeResearchUpload = mutation({
     }
 
     const now = Date.now();
+    await ctx.db.insert("storageOwnership", {
+      ownerId,
+      storageId: args.storageId,
+      purpose: "research",
+      createdAt: now,
+    });
     const attachmentId = await ctx.db.insert("messageAttachments", {
       ownerId,
       storageId: args.storageId,

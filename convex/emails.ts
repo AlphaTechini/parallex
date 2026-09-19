@@ -19,6 +19,29 @@ type ActiveInbox = Omit<Doc<"agentMailInboxes">, "providerInboxId" | "confirmedA
 };
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "canceled"]);
+type DeliveryStatus = "accepted" | "delivered" | "failed";
+
+export function canApplyDeliveryStatus(
+  current: Doc<"emailMessages">["status"],
+  next: DeliveryStatus,
+): boolean {
+  if (current === "delivered" || current === "failed") {
+    return current === next;
+  }
+  return current === "pending" || current === "sending" || current === "accepted";
+}
+
+function emailKind(
+  message: Doc<"emailMessages">,
+): "report" | "thread_reply" {
+  if (message.idempotencyKey.startsWith("email-reply:")) {
+    return "thread_reply";
+  }
+  if (message.idempotencyKey.startsWith("email:") && message.reportId !== undefined) {
+    return "report";
+  }
+  throw new Error("EMAIL_CONTEXT_INVALID");
+}
 
 type EmailGraph = {
   call: Doc<"toolCalls">;
@@ -219,6 +242,9 @@ export const markOutboundAccepted = internalMutation({
     ) {
       throw new Error("EMAIL_THREAD_OWNERSHIP_INVALID");
     }
+    if (!canApplyDeliveryStatus(message.status, "accepted")) {
+      return { ok: true, threadId: existingThread?._id };
+    }
     const threadId =
       existingThread?._id ??
       (await ctx.db.insert("emailThreads", {
@@ -256,6 +282,9 @@ export const markOutboundFailed = internalMutation({
     if (message === null || message.direction !== "outbound") throw new Error("EMAIL_NOT_FOUND");
     const run = message.runId === undefined ? null : await ctx.db.get("researchRuns", message.runId);
     if (run === null || run.ownerId !== message.ownerId) throw new Error("EMAIL_OWNERSHIP_INVALID");
+    if (!canApplyDeliveryStatus(message.status, "failed")) {
+      return { ok: true };
+    }
     await ctx.db.patch("emailMessages", message._id, {
       status: "failed",
       updatedAt: Date.now(),
@@ -306,6 +335,21 @@ export const getOutboundSendContext = internalQuery({
   },
 });
 
+export const getEmailRetryKind = internalQuery({
+  args: { emailMessageId: v.id("emailMessages") },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get("emailMessages", args.emailMessageId);
+    if (message === null || message.direction !== "outbound") {
+      throw new Error("EMAIL_NOT_FOUND");
+    }
+    return {
+      kind: emailKind(message),
+      status: message.status,
+      runId: message.runId ?? null,
+    };
+  },
+});
+
 export const retryFailedEmail = mutation({
   args: { emailMessageId: v.id("emailMessages") },
   handler: async (ctx, args) => {
@@ -315,6 +359,7 @@ export const retryFailedEmail = mutation({
       throw new Error("NOT_FOUND");
     }
     if (message.status !== "failed") throw new Error("EMAIL_NOT_RETRYABLE");
+    emailKind(message);
     await ctx.db.patch("emailMessages", message._id, {
       status: "sending",
       updatedAt: Date.now(),
@@ -368,11 +413,26 @@ export const updateDeliveryStatus = internalMutation({
     if (bot === null || inbox === null || bot.ownerId !== message.ownerId || inbox.ownerId !== message.ownerId) {
       return { ok: true, updated: false };
     }
-    await ctx.db.patch("emailMessages", message._id, {
-      status: args.status,
-      providerTimestamp: args.providerTimestamp,
-      updatedAt: Date.now(),
-    });
+    if (!canApplyDeliveryStatus(message.status, args.status)) {
+      return { ok: true, updated: false };
+    }
+    const statusChanged = message.status !== args.status;
+    if (!statusChanged && args.providerTimestamp === undefined) {
+      return { ok: true, updated: false };
+    }
+    const updatedAt = Date.now();
+    if (args.providerTimestamp === undefined) {
+      await ctx.db.patch("emailMessages", message._id, {
+        status: args.status,
+        updatedAt,
+      });
+    } else {
+      await ctx.db.patch("emailMessages", message._id, {
+        status: args.status,
+        providerTimestamp: args.providerTimestamp,
+        updatedAt,
+      });
+    }
     if (message.runId !== undefined) {
       const run = await ctx.db.get("researchRuns", message.runId);
       if (run !== null && run.ownerId === message.ownerId) {
@@ -384,7 +444,7 @@ export const updateDeliveryStatus = internalMutation({
         );
       }
     }
-    return { ok: true, updated: true };
+    return { ok: true, updated: statusChanged || args.providerTimestamp !== undefined };
   },
 });
 
@@ -533,6 +593,9 @@ export const markEmailReplyAccepted = internalMutation({
     if (message === null || message.direction !== "outbound") throw new Error("EMAIL_NOT_FOUND");
     const run = message.runId === undefined ? null : await ctx.db.get("researchRuns", message.runId);
     if (run === null || run.ownerId !== message.ownerId) throw new Error("EMAIL_OWNERSHIP_INVALID");
+    if (!canApplyDeliveryStatus(message.status, "accepted")) {
+      return { ok: true };
+    }
     await ctx.db.patch("emailMessages", message._id, {
       providerMessageId: args.providerMessageId,
       providerThreadId: args.providerThreadId,

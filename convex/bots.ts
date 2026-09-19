@@ -1,7 +1,7 @@
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import type { QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
   getAuthenticatedUserId,
   requireOwnedBot,
@@ -10,6 +10,18 @@ import { isValidEmail, normalizeEmail, usernameFromBotName } from "./lib/normali
 import { v } from "convex/values";
 
 const DEFAULT_AVATAR_COLORS = 7;
+
+async function cancelScheduledFunction(
+  ctx: MutationCtx,
+  id: Doc<"researchSchedules">["convexScheduledFunctionId"],
+) {
+  if (id === undefined) return;
+  try {
+    await ctx.scheduler.cancel(id);
+  } catch {
+    return;
+  }
+}
 
 export type BotAvatar =
   | { kind: "default"; colorIndex: number }
@@ -146,7 +158,15 @@ export const finalizeAvatarUpload = mutation({
       claim.storageId !== undefined ||
       claim.consumedByBotId !== undefined
     ) {
-      throw new Error("NOT_FOUND");
+       throw new Error("NOT_FOUND");
+    }
+
+    const existingStorageOwnership = await ctx.db
+      .query("storageOwnership")
+      .withIndex("by_storage", (q) => q.eq("storageId", args.storageId))
+      .unique();
+    if (existingStorageOwnership !== null) {
+      throw new Error("STORAGE_ALREADY_CLAIMED");
     }
 
     const metadata = await ctx.storage.getMetadata(args.storageId);
@@ -159,6 +179,12 @@ export const finalizeAvatarUpload = mutation({
       throw new Error("INVALID_AVATAR");
     }
 
+    await ctx.db.insert("storageOwnership", {
+      ownerId,
+      storageId: args.storageId,
+      purpose: "avatar",
+      createdAt: Date.now(),
+    });
     await ctx.db.patch("avatarUploadClaims", claim._id, {
       storageId: args.storageId,
     });
@@ -367,15 +393,30 @@ export const archiveBot = mutation({
   handler: async (ctx, args) => {
     const ownerId = await getAuthenticatedUserId(ctx);
     const bot = await requireOwnedBot(ctx, ownerId, args.botId);
-    if (bot.status === "archived") {
-      return { ok: true };
-    }
     const now = Date.now();
-    await ctx.db.patch("bots", bot._id, {
-      status: "archived",
-      archivedAt: now,
-      updatedAt: now,
-    });
+
+    const activeSchedules = await ctx.db
+      .query("researchSchedules")
+      .withIndex("by_bot_status_next", (q) =>
+        q.eq("botId", bot._id).eq("status", "active"),
+      )
+      .collect();
+    for (const schedule of activeSchedules) {
+      await cancelScheduledFunction(ctx, schedule.convexScheduledFunctionId);
+      await ctx.db.patch("researchSchedules", schedule._id, {
+        status: "paused",
+        convexScheduledFunctionId: undefined,
+        updatedAt: now,
+      });
+    }
+
+    if (bot.status !== "archived") {
+      await ctx.db.patch("bots", bot._id, {
+        status: "archived",
+        archivedAt: now,
+        updatedAt: now,
+      });
+    }
     return { ok: true };
   },
 });

@@ -180,6 +180,17 @@ async function storeArtifact(
     throw new Error("REPORT_OWNERSHIP_INVALID");
   }
   if (args.sizeBytes < 1 || args.sizeBytes > 8_000_000) throw new Error("REPORT_ARTIFACT_TOO_LARGE");
+  const existingStorageOwnership = await ctx.db
+    .query("storageOwnership")
+    .withIndex("by_storage", (q) => q.eq("storageId", args.storageId))
+    .unique();
+  if (existingStorageOwnership !== null) throw new Error("STORAGE_ALREADY_CLAIMED");
+  await ctx.db.insert("storageOwnership", {
+    ownerId: graph.run.ownerId,
+    storageId: args.storageId,
+    purpose: "report",
+    createdAt: Date.now(),
+  });
   const previous = await ctx.db
     .query("reportArtifacts")
     .withIndex("by_report_format", (q) => q.eq("reportId", args.reportId).eq("format", args.format))

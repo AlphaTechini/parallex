@@ -63,6 +63,7 @@ async function markSkipped(
   schedule: Doc<"researchSchedules">,
   scheduledFor: number,
   reason: string,
+  options: { reschedule?: boolean } = {},
 ) {
   const key = occurrenceKey(schedule._id, scheduledFor);
   const existing = await ctx.db
@@ -81,7 +82,9 @@ async function markSkipped(
       completedAt: Date.now(),
     });
   }
-  if (schedule.status === "active") await scheduleNext(ctx, schedule, scheduledFor);
+  if (existing === null && options.reschedule !== false && schedule.status === "active") {
+    await scheduleNext(ctx, schedule, scheduledFor);
+  }
   return { ok: true, skipped: true };
 }
 
@@ -90,10 +93,9 @@ export const run = internalMutation({
   handler: async (ctx, args) => {
     const schedule = await ctx.db.get("researchSchedules", args.scheduleId);
     if (schedule === null) return { ok: true, skipped: true };
-    if (schedule.nextRunAt !== args.scheduledFor && schedule.status === "active") {
-      return { ok: true, skipped: true, reason: "stale_schedule_handle" };
+    if (schedule.status !== "active") {
+      return await markSkipped(ctx, schedule, args.scheduledFor, "schedule_not_active");
     }
-    if (schedule.status !== "active") return await markSkipped(ctx, schedule, args.scheduledFor, "schedule_not_active");
 
     const bot = await ctx.db.get("bots", schedule.botId);
     const chat = await ctx.db.get("chats", schedule.chatId);
@@ -112,7 +114,16 @@ export const run = internalMutation({
       bot.status !== "active" ||
       chat.status !== "active"
     ) {
-      return await markSkipped(ctx, schedule, args.scheduledFor, "schedule_context_invalid");
+      return await markSkipped(
+        ctx,
+        schedule,
+        args.scheduledFor,
+        "schedule_context_invalid",
+        { reschedule: false },
+      );
+    }
+    if (schedule.nextRunAt !== args.scheduledFor) {
+      return { ok: true, skipped: true, reason: "stale_schedule_handle" };
     }
 
     const key = occurrenceKey(schedule._id, args.scheduledFor);

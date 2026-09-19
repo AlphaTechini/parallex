@@ -1,6 +1,8 @@
 "use node";
 
 import { AgentMailClient } from "agentmail";
+import { internalAction } from "../_generated/server";
+import { v } from "convex/values";
 
 export type ProvisionedInbox = {
   providerInboxId: string;
@@ -43,6 +45,29 @@ export function getAgentMailClient(): AgentMailClient {
   }
   return new AgentMailClient({ apiKey });
 }
+
+function normalizedMessageText(value: string | undefined): string {
+  return value?.replace(/\u0000/g, "").trim().slice(0, 10_000) ?? "";
+}
+
+export const fetchMessageContent = internalAction({
+  args: {
+    inboxId: v.string(),
+    messageId: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const message = await getAgentMailClient().inboxes.messages.get(
+      args.inboxId,
+      args.messageId,
+    );
+    const extractedText = normalizedMessageText(message.extractedText);
+    const text = extractedText || normalizedMessageText(message.text);
+    return {
+      content: text,
+      timestamp: message.timestamp.toISOString(),
+    };
+  },
+});
 
 export async function createInboxWithUsername(
   username: string,

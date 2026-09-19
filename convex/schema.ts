@@ -640,6 +640,17 @@ const appTables = {
     .index("by_response_id", ["responseId"])
     .index("by_run_status", ["runId", "status"]),
 
+  storageOwnership: defineTable({
+    ownerId: v.id("users"),
+    storageId: v.id("_storage"),
+    purpose: v.union(
+      v.literal("avatar"),
+      v.literal("research"),
+      v.literal("report"),
+    ),
+    createdAt: v.number(),
+  }).index("by_storage", ["storageId"]),
+
   avatarUploadClaims: defineTable({
     ownerId: v.id("users"),
     token: v.string(),

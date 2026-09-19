@@ -1,6 +1,7 @@
 import { makeFunctionReference } from "convex/server";
 import { internalMutation, type ActionCtx, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { canApplyDeliveryStatus } from "./emails";
 import { sha256Hex } from "./lib/normalize";
 import { v } from "convex/values";
 
@@ -21,6 +22,11 @@ const processInbound = makeFunctionReference<
   },
   unknown
 >("inboundEmailProcessor:processInbound");
+const fetchInboundMessage = makeFunctionReference<
+  "action",
+  { inboxId: string; messageId: string },
+  { content: string; timestamp: string }
+>("lib/agentmailClient:fetchMessageContent");
 const updateDelivery = makeFunctionReference<
   "mutation",
   { providerEventId: string; eventType: string; payloadHash: string; providerMessageId: string; providerTimestamp?: number },
@@ -125,10 +131,17 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 20) : [];
 }
 
-function parsedTimestamp(value: string | undefined): number | undefined {
+function parsedTimestamp(value: string | number | undefined): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
   if (value === undefined) return undefined;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function normalizedInboundText(value: string): string {
+  return value.replace(/\u0000/g, "").trim().slice(0, 10_000);
 }
 
 async function appendDeliveryEvent(
@@ -165,23 +178,56 @@ function eventMessage(payload: Record<string, unknown>) {
   const message = record(payload.message);
   const delivery = record(payload.delivery);
   const send = record(payload.send);
+  const bounce = record(payload.bounce);
+  const complaint = record(payload.complaint);
+  const reject = record(payload.reject);
+  const eventDetails = [message, delivery, send, bounce, complaint, reject];
+  const firstString = (keys: string[]): string | undefined => {
+    for (const detail of eventDetails) {
+      for (const key of keys) {
+        const value = stringValue(detail[key]);
+        if (value !== undefined && value.length > 0) return value;
+      }
+    }
+    for (const key of keys) {
+      const value = stringValue(payload[key]);
+      if (value !== undefined && value.length > 0) return value;
+    }
+    return undefined;
+  };
+  const firstTimestamp = (): string | number | undefined => {
+    for (const detail of eventDetails) {
+      const value = detail.timestamp;
+      if (typeof value === "string" || typeof value === "number") return value;
+    }
+    const value = payload.timestamp;
+    return typeof value === "string" || typeof value === "number" ? value : undefined;
+  };
+  const hasBody = [
+    message.extracted_text,
+    message.extractedText,
+    message.text,
+    payload.extracted_text,
+    payload.extractedText,
+    payload.text,
+  ].some((value) => typeof value === "string");
   return {
-    inboxId: stringValue(message.inbox_id ?? message.inboxId ?? payload.inbox_id ?? payload.inboxId),
-    messageId: stringValue(message.message_id ?? message.messageId ?? payload.message_id ?? payload.messageId ?? delivery.message_id ?? send.message_id),
-    threadId: stringValue(message.thread_id ?? message.threadId ?? payload.thread_id ?? payload.threadId),
+    inboxId: firstString(["inbox_id", "inboxId"]),
+    messageId: firstString(["message_id", "messageId"]),
+    threadId: firstString(["thread_id", "threadId"]),
     from: stringValue(message.from_ ?? message.from ?? payload.from),
     to: stringArray(message.to ?? payload.to),
     subject: stringValue(message.subject ?? payload.subject) ?? "Research reply",
-    extractedText:
-      stringValue(
-        message.extracted_text ??
-          message.extractedText ??
-          message.text ??
-          payload.extracted_text ??
-          payload.extractedText ??
-          payload.text,
-      ) ?? "",
-    timestamp: stringValue(message.timestamp ?? payload.timestamp) ?? undefined,
+    extractedText: stringValue(
+      message.extracted_text ||
+        message.extractedText ||
+        message.text ||
+        payload.extracted_text ||
+        payload.extractedText ||
+        payload.text,
+    ) ?? "",
+    hasBody,
+    timestamp: firstTimestamp(),
   };
 }
 
@@ -265,14 +311,26 @@ export const processDelivery = internalMutation({
       await ctx.db.patch("webhookEvents", eventId, { status: "rejected", failureCode: "mapping_invalid", processedAt: Date.now() });
       return { ok: true, mapped: false };
     }
-    await ctx.db.patch("emailMessages", emailMessage._id, {
-      status,
-      providerTimestamp: args.providerTimestamp,
-      updatedAt: Date.now(),
-    });
-    await appendDeliveryEvent(ctx, emailMessage, status);
+    const transitionAllowed = canApplyDeliveryStatus(emailMessage.status, status);
+    if (transitionAllowed) {
+      if (args.providerTimestamp === undefined) {
+        await ctx.db.patch("emailMessages", emailMessage._id, {
+          status,
+          updatedAt: Date.now(),
+        });
+      } else {
+        await ctx.db.patch("emailMessages", emailMessage._id, {
+          status,
+          providerTimestamp: args.providerTimestamp,
+          updatedAt: Date.now(),
+        });
+      }
+      if (emailMessage.status !== status) {
+        await appendDeliveryEvent(ctx, emailMessage, status);
+      }
+    }
     await ctx.db.patch("webhookEvents", eventId, { status: "processed", processedAt: Date.now() });
-    return { ok: true, mapped: true };
+    return { ok: true, mapped: true, updated: transitionAllowed && emailMessage.status !== status };
   },
 });
 
@@ -320,6 +378,22 @@ export async function handleAgentMailWebhook(ctx: ActionCtx, request: Request): 
       });
       return new Response("", { status: 400 });
     }
+    let extractedText = message.extractedText;
+    let providerTimestamp = parsedTimestamp(message.timestamp);
+    if (!message.hasBody) {
+      try {
+        const fetched = await ctx.runAction(fetchInboundMessage, {
+          inboxId: message.inboxId,
+          messageId: message.messageId,
+        });
+        extractedText = fetched.content;
+        if (providerTimestamp === undefined) {
+          providerTimestamp = parsedTimestamp(fetched.timestamp);
+        }
+      } catch {
+        extractedText = "";
+      }
+    }
     await ctx.runMutation(processInbound, {
       providerEventId,
       eventType,
@@ -330,8 +404,8 @@ export async function handleAgentMailWebhook(ctx: ActionCtx, request: Request): 
       fromAddress: message.from,
       toAddresses: message.to,
       subject: message.subject,
-      extractedText: message.extractedText.slice(0, 10_000),
-      providerTimestamp: parsedTimestamp(message.timestamp),
+      extractedText: normalizedInboundText(extractedText),
+      providerTimestamp,
     });
     return new Response("", { status: 204 });
   }

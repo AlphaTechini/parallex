@@ -45,6 +45,15 @@ const getOutbound = makeFunctionReference<
     artifacts: AttachmentCandidate[];
   }
 >("emails:getOutboundSendContext");
+const getRetryKind = makeFunctionReference<
+  "query",
+  { emailMessageId: Id<"emailMessages"> },
+  {
+    kind: "report" | "thread_reply";
+    status: string;
+    runId: Id<"researchRuns"> | null;
+  }
+>("emails:getEmailRetryKind");
 const markAccepted = makeFunctionReference<
   "mutation",
   { emailMessageId: Id<"emailMessages">; providerMessageId: string; providerThreadId: string },
@@ -182,9 +191,62 @@ export const sendEmail = internalAction({
   },
 });
 
+async function sendReplyForRun(ctx: ActionCtx, runId: Id<"researchRuns">) {
+  const context = await ctx.runQuery(replyContext, { runId });
+  if (context === null || context.inbound.providerMessageId === undefined || context.inbox.providerInboxId === undefined) {
+    return { ok: false, reason: "reply_context_unavailable" };
+  }
+  const body = context.assistant.content.trim();
+  if (!body) return { ok: false, reason: "empty_assistant_message" };
+  const subject = context.inbound.subject.toLowerCase().startsWith("re:")
+    ? context.inbound.subject
+    : `Re: ${context.inbound.subject}`;
+  const began = await ctx.runMutation(beginReply, { runId, body, subject });
+  if (began.state === "accepted") return { ok: true, status: "accepted" };
+  if (began.inbox.providerInboxId === undefined) {
+    return { ok: false, reason: "reply_inbox_unavailable" };
+  }
+  try {
+    const attachment = await attachmentBytes(ctx, context.artifacts);
+    const sent = await getAgentMailClient().inboxes.messages.reply(
+      began.inbox.providerInboxId,
+      context.inbound.providerMessageId,
+      {
+        text: body,
+        attachments: attachment === undefined ? undefined : [attachment],
+      },
+      { idempotencyKey: began.message.idempotencyKey },
+    );
+    await ctx.runMutation(markReplyAccepted, {
+      emailMessageId: began.message._id,
+      providerMessageId: sent.messageId,
+      providerThreadId: sent.threadId,
+    });
+    return { ok: true, status: "accepted" };
+  } catch (error) {
+    try {
+      await ctx.runMutation(markFailed, {
+        emailMessageId: began.message._id,
+        errorCode: sanitizeErrorCode(error),
+      });
+    } catch {
+      return { ok: false, reason: "reply_state_failed" };
+    }
+    return { ok: false, reason: "provider_rejected" };
+  }
+}
+
 export const retryEmail = internalAction({
   args: { emailMessageId: v.id("emailMessages") },
   handler: async (ctx, args) => {
+    const routing = await ctx.runQuery(getRetryKind, args);
+    if (routing.status === "accepted" || routing.status === "delivered") {
+      return { ok: true, status: routing.status };
+    }
+    if (routing.kind === "thread_reply") {
+      if (routing.runId === null) return { ok: false, reason: "reply_context_unavailable" };
+      return await sendReplyForRun(ctx, routing.runId);
+    }
     const context = await ctx.runQuery(getOutbound, args);
     if (context.message.status === "accepted" || context.message.status === "delivered") {
       return { ok: true, status: context.message.status };
@@ -203,47 +265,6 @@ export const retryEmail = internalAction({
 export const replyForEmailRun = internalAction({
   args: { runId: v.id("researchRuns") },
   handler: async (ctx, args) => {
-    const context = await ctx.runQuery(replyContext, args);
-    if (context === null || context.inbound.providerMessageId === undefined || context.inbox.providerInboxId === undefined) {
-      return { ok: false, reason: "reply_context_unavailable" };
-    }
-    const body = context.assistant.content.trim();
-    if (!body) return { ok: false, reason: "empty_assistant_message" };
-    const subject = context.inbound.subject.toLowerCase().startsWith("re:")
-      ? context.inbound.subject
-      : `Re: ${context.inbound.subject}`;
-    const began = await ctx.runMutation(beginReply, { runId: args.runId, body, subject });
-    if (began.state === "accepted") return { ok: true, status: "accepted" };
-    if (began.inbox.providerInboxId === undefined) {
-      return { ok: false, reason: "reply_inbox_unavailable" };
-    }
-    try {
-      const attachment = await attachmentBytes(ctx, context.artifacts);
-      const sent = await getAgentMailClient().inboxes.messages.reply(
-        began.inbox.providerInboxId,
-        context.inbound.providerMessageId,
-        {
-          text: body,
-          attachments: attachment === undefined ? undefined : [attachment],
-        },
-        { idempotencyKey: began.message.idempotencyKey },
-      );
-      await ctx.runMutation(markReplyAccepted, {
-        emailMessageId: began.message._id,
-        providerMessageId: sent.messageId,
-        providerThreadId: sent.threadId,
-      });
-      return { ok: true, status: "accepted" };
-    } catch (error) {
-      try {
-        await ctx.runMutation(markFailed, {
-          emailMessageId: began.message._id,
-          errorCode: sanitizeErrorCode(error),
-        });
-      } catch {
-        return { ok: false, reason: "reply_state_failed" };
-      }
-      return { ok: false, reason: "provider_rejected" };
-    }
+    return await sendReplyForRun(ctx, args.runId);
   },
 });
