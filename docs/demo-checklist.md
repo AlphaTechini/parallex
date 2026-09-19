@@ -9,7 +9,7 @@ Automated commands available in this repository:
 | `pnpm lint` | ESLint passes with the Next.js TypeScript configuration. |
 | `pnpm typecheck` | The whole project type checks with `tsc --noEmit`. |
 | `pnpm build` | The production build completes, including the proxy entry point. |
-| `pnpm test` | Vitest runs. The runner is configured; no test suites are committed yet, so this command passes vacuously and replaces nothing below. |
+| `pnpm test` | Runs the committed ownership, idempotency, state, instruction, upload, routing, and integration-regression suites with `convex-test` provider boundaries. |
 
 The Convex dashboard is the backing-state inspector for the manual checks: confirm the actual rows (`bots`, `researchRuns`, `researchSources`, `reports`, `reportArtifacts`, `emailMessages`, `webhookEvents`, `researchSchedules`, `scheduleOccurrences`) rather than trusting screen copy.
 

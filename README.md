@@ -148,7 +148,7 @@ Route registration is in [convex/http.ts](convex/http.ts) and the handler is in 
 
 ## Testing
 
-`pnpm test` runs Vitest, and `convex-test` is available as a dev dependency for exercising Convex functions against a mock backend. The repository currently ships the runner configuration without committed test suites, so automated coverage is limited to lint, type checking, and build verification. Functional and acceptance checks are documented as manual, provider-backed steps in [docs/demo-checklist.md](docs/demo-checklist.md).
+`pnpm test` runs the committed Vitest and `convex-test` suite. Coverage includes tenant ownership, idempotency, run and schedule state transitions, immutable instruction versions, avatar and upload rules, Firecrawl routing contracts, and integration-review regressions. Provider-backed behavior that cannot be proven in the local test runtime remains listed as a manual check in [docs/demo-checklist.md](docs/demo-checklist.md).
 
 ## Deployment
 

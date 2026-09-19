@@ -1,6 +1,6 @@
 # Tests
 
-This directory is the home for automated tests. Vitest is configured in the root manifest and `convex-test` is available as a dev dependency, so Convex queries, mutations, actions, and scheduled functions can be exercised against a mock backend here.
+This directory contains the automated acceptance and regression suites. Vitest runs deterministic helpers and `convex-test` exercises Convex queries, mutations, actions, and scheduled functions against an isolated mock backend.
 
 Run the suite from the repository root:
 
@@ -8,11 +8,11 @@ Run the suite from the repository root:
 pnpm test
 ```
 
-The repository currently ships the runner configuration without committed test suites. Product acceptance is therefore verified with the manual, provider-backed checks in [docs/demo-checklist.md](../docs/demo-checklist.md), alongside `pnpm lint`, `pnpm typecheck`, and `pnpm build`.
+The committed suites cover ownership, idempotency, lifecycle state, instruction versioning, avatar and upload rules, Firecrawl routing, and integration-review regressions. Provider behavior that requires live OpenAI, Firecrawl, AgentMail, or Convex File Storage metadata remains covered by the manual checks in [docs/demo-checklist.md](../docs/demo-checklist.md).
 
-To find the product acceptance checks that stand in for the missing suites visit [docs/demo-checklist.md](../docs/demo-checklist.md). The schema and function modules under test can be found in [convex/schema.ts](../convex/schema.ts) and the sibling Convex function files.
+To find the provider-backed product acceptance checks visit [docs/demo-checklist.md](../docs/demo-checklist.md). The schema and function modules under test can be found in [convex/schema.ts](../convex/schema.ts) and the sibling Convex function files.
 
-## Conventions for future suites
+## Test conventions
 
 - One file per backend module or product behavior, named after the module under test, so failures point at the owning code.
 - Convex function tests use `convex-test` with the schema from [convex/schema.ts](../convex/schema.ts) and the function modules registered through `import.meta.glob`, following the pattern in the official Convex testing docs referenced in [llm.txt](../llm.txt).
