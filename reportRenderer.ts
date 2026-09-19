@@ -271,6 +271,12 @@ function maxTableLines(available: number): number {
   return Math.max(1, Math.floor((available - 8) / 12));
 }
 
+export function canRepeatTableHeader(headerLineCount: number): boolean {
+  const normalizedLines = Math.max(1, Math.trunc(headerLineCount));
+  const headerHeight = Math.max(20, normalizedLines * 12 + 8);
+  return headerHeight + 20 <= PAGE_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
+}
+
 function drawTableSegment(
   cursor: PageCursor,
   rendered: string[][],
@@ -361,7 +367,17 @@ function drawTable(
   const renderedRows = rows.map((row) =>
     row.map((cell) => wrapText(cell, fonts.body, 8.5, columnWidth - 12, fonts.fallback)),
   );
-  let current = drawTableHeader(cursor, renderedRows[0], fonts, columns, x, width, newPage);
+  const header = renderedRows[0];
+  const headerLines = Math.max(1, ...header.map((lines) => lines.length));
+  const canRepeatHeader = canRepeatTableHeader(headerLines);
+  let current = drawTableHeader(cursor, header, fonts, columns, x, width, newPage);
+
+  const startBodyPage = (): PageCursor => {
+    const page = newPage();
+    return canRepeatHeader
+      ? drawTableHeader(page, header, fonts, columns, x, width, newPage)
+      : page;
+  };
 
   for (let rowIndex = 1; rowIndex < renderedRows.length; rowIndex += 1) {
     const rendered = renderedRows[rowIndex];
@@ -372,15 +388,13 @@ function drawTable(
       const available = current.y - BOTTOM_MARGIN;
       const fullHeight = tableRowHeight(rendered, offset, totalLines - offset);
       if (offset === 0 && canMoveWholeRow && fullHeight > available) {
-        current = newPage();
-        current = drawTableHeader(current, renderedRows[0], fonts, columns, x, width, newPage);
+        current = startBodyPage();
         canMoveWholeRow = false;
         continue;
       }
       const lineCapacity = maxTableLines(available);
       if (lineCapacity === 0) {
-        current = newPage();
-        current = drawTableHeader(current, renderedRows[0], fonts, columns, x, width, newPage);
+        current = startBodyPage();
         canMoveWholeRow = false;
         continue;
       }
@@ -398,8 +412,7 @@ function drawTable(
       );
       offset += lineCount;
       if (offset < totalLines) {
-        current = newPage();
-        current = drawTableHeader(current, renderedRows[0], fonts, columns, x, width, newPage);
+        current = startBodyPage();
         canMoveWholeRow = false;
       }
     }

@@ -96,16 +96,22 @@ function jobDocuments(status: Record<string, unknown>): ProviderDocument[] {
   return resultDocumentList(status.data);
 }
 
-function validJobDocuments(documents: ProviderDocument[]): {
-  documents: ProviderDocument[];
+export type ValidJobDocument = {
+  document: ProviderDocument;
+  originalIndex: number;
+};
+
+export function validJobDocuments(documents: ProviderDocument[]): {
+  documents: ValidJobDocument[];
   rejectedCount: number;
 } {
-  const valid: ProviderDocument[] = [];
+  const valid: ValidJobDocument[] = [];
   let rejectedCount = 0;
-  for (const document of documents) {
+  for (let originalIndex = 0; originalIndex < documents.length; originalIndex += 1) {
+    const document = documents[originalIndex];
     try {
       assertDocumentTargetStatus(document);
-      valid.push(document);
+      valid.push({ document, originalIndex });
     } catch (error) {
       if (!isTargetStatusError(error)) throw error;
       rejectedCount += 1;
@@ -119,17 +125,17 @@ function validJobDocuments(documents: ProviderDocument[]): {
 
 function providerSources(
   context: Extract<PollContext, { active: true }>,
-  documents: ProviderDocument[],
+  documents: ValidJobDocument[],
 ): Array<SourceInput & { retrievedAt?: number }> {
   const urls = Array.isArray(context.args.urls) ? context.args.urls : [];
   const fallback = typeof context.args.url === "string" ? context.args.url : undefined;
   const sourceType: SourceInput["sourceType"] =
     context.toolCall.functionName === "firecrawl_agent_gather" ? "other" : "web";
   const sources: Array<SourceInput & { retrievedAt?: number }> = [];
-  for (let index = 0; index < documents.length; index += 1) {
+  for (const entry of documents) {
     const source = documentSource(
-      documents[index],
-      urls[index] ?? fallback,
+      entry.document,
+      urls[entry.originalIndex] ?? fallback,
       sourceType,
       context.toolCall.functionName as Doc<"researchSources">["retrievalMethod"],
     );
@@ -137,7 +143,11 @@ function providerSources(
   }
   if (context.toolCall.functionName === "firecrawl_agent_gather") {
     const serialized = JSON.stringify(context.args.goal ?? "");
-    const urlsFromData = extractUrls(documents.length > 0 ? documents : [asProviderDocument(context.args)]);
+    const urlsFromData = extractUrls(
+      documents.length > 0
+        ? documents.map((entry) => entry.document)
+        : [asProviderDocument(context.args)],
+    );
     for (const url of urlsFromData) {
       try {
         assertPublicUrlShape(url);
@@ -181,8 +191,9 @@ function statusSnapshot(
   status: Record<string, unknown>,
 ) {
   const documentResult = validJobDocuments(jobDocuments(status));
-  const documents = documentResult.documents.slice(0, MAX_RESULT_DOCUMENTS);
-  const sources = providerSources(context, documents);
+  const validDocuments = documentResult.documents.slice(0, MAX_RESULT_DOCUMENTS);
+  const documents = validDocuments.map((entry) => entry.document);
+  const sources = providerSources(context, validDocuments);
   const output = {
     ok: true,
     capability: context.toolCall.functionName,

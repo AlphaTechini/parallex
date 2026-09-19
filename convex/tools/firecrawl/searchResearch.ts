@@ -4,8 +4,7 @@ import { getFirecrawlClient, assertPublicUrlShape } from "../../lib/firecrawlCli
 import { canonicalizeUrl } from "../../lib/normalize";
 import type { ExecutorResult, ToolExecutionContext } from "../types";
 import {
-  asProviderDocument,
-  documentSource,
+  normalizeSearchEntries,
   persistAndBuildImmediateResult,
   providerErrorResult,
   textValue,
@@ -38,22 +37,24 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
         categories: ["research"],
         limit,
       });
-      const sources = (result.web ?? [])
-        .slice(0, 20)
-        .map((entry) =>
-          documentSource(
-            asProviderDocument(entry),
-            textValue(asProviderDocument(entry).url, 2_048),
-            "research",
-            "firecrawl_search_research",
-          ),
-        )
-        .filter((source): source is NonNullable<typeof source> => source !== undefined);
+      const candidates = (result.web ?? []).slice(0, 20);
+      const normalized = normalizeSearchEntries(
+        candidates,
+        "research",
+        "firecrawl_search_research",
+      );
+      if (candidates.length > 0 && normalized.sources.length === 0 && normalized.rejectedCount > 0) {
+        throw new Error("FIRECRAWL_TARGET_STATUS_INVALID");
+      }
       return await persistAndBuildImmediateResult(
         context,
         "firecrawl_search_research",
-        { mode: "academic", results: (result.web ?? []).slice(0, 20) },
-        sources,
+        {
+          mode: "academic",
+          results: normalized.entries,
+          rejectedDocuments: normalized.rejectedCount,
+        },
+        normalized.sources,
       );
     }
 

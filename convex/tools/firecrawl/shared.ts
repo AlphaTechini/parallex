@@ -130,12 +130,19 @@ export function isTargetStatusError(error: unknown): boolean {
   );
 }
 
-function hasFetchedDocumentEvidence(document: ProviderDocument): boolean {
+export function hasFetchedDocumentEvidence(document: ProviderDocument): boolean {
+  if (
+    textValue(document.markdown, MAX_DOCUMENT_EVIDENCE_CHARS) !== undefined ||
+    textValue(document.html, MAX_DOCUMENT_EVIDENCE_CHARS) !== undefined ||
+    textValue(document.rawHtml, MAX_DOCUMENT_EVIDENCE_CHARS) !== undefined
+  ) {
+    return true;
+  }
+  if (Array.isArray(document.json)) return document.json.length > 0;
   return (
-    typeof document.markdown === "string" ||
-    typeof document.html === "string" ||
-    typeof document.rawHtml === "string" ||
-    document.json !== undefined
+    typeof document.json === "object" &&
+    document.json !== null &&
+    Object.keys(document.json).length > 0
   );
 }
 
@@ -344,6 +351,33 @@ export function normalizeSearchEntry(
   const source = documentSource(record, url, sourceType, retrievalMethod);
   if (source) return source;
   return undefined;
+}
+
+export function normalizeSearchEntries(
+  values: unknown[],
+  sourceType: ResearchSourceType,
+  retrievalMethod: Doc<"researchSources">["retrievalMethod"],
+): {
+  entries: unknown[];
+  sources: ProviderSource[];
+  rejectedCount: number;
+} {
+  const entries: unknown[] = [];
+  const sources: ProviderSource[] = [];
+  let rejectedCount = 0;
+  for (const value of values) {
+    try {
+      const source = normalizeSearchEntry(value, sourceType, retrievalMethod);
+      if (source !== undefined) {
+        entries.push(value);
+        sources.push(source);
+      }
+    } catch (error) {
+      if (!isTargetStatusError(error)) throw error;
+      rejectedCount += 1;
+    }
+  }
+  return { entries, sources, rejectedCount };
 }
 
 export function providerErrorResult(error: unknown): ExecutorResult {

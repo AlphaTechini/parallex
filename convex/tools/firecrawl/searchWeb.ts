@@ -4,7 +4,7 @@ import { getFirecrawlClient, assertPublicDomain, toSearchTimeRange } from "../..
 import type { SourceInput } from "../../sources";
 import type { ExecutorResult, ToolExecutionContext } from "../types";
 import {
-  normalizeSearchEntry,
+  normalizeSearchEntries,
   persistAndBuildImmediateResult,
   providerErrorResult,
   textValue,
@@ -32,23 +32,29 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
       request.scrapeOptions = { formats: ["markdown"], onlyMainContent: true };
     }
     const result = await client.search(query, request as never);
-    const sourceRecords: Array<ReturnType<typeof normalizeSearchEntry>> = [];
+    const sourceRecords: SourceInput[] = [];
     const resultGroups: Record<string, unknown[]> = {};
+    let rejectedCount = 0;
+    let candidateCount = 0;
     for (const group of ["web", "news", "images"] as const) {
       const entries = Array.isArray(result[group]) ? result[group] : [];
-      resultGroups[group] = entries.slice(0, 20);
+      const candidates = entries.slice(0, 20);
+      candidateCount += candidates.length;
       const sourceType: SourceInput["sourceType"] =
         group === "news" ? "news" : group === "images" ? "image" : "web";
-      for (const entry of entries.slice(0, 20)) {
-        sourceRecords.push(normalizeSearchEntry(entry, sourceType, "firecrawl_search_web"));
-      }
+      const normalized = normalizeSearchEntries(candidates, sourceType, "firecrawl_search_web");
+      resultGroups[group] = normalized.entries;
+      sourceRecords.push(...normalized.sources);
+      rejectedCount += normalized.rejectedCount;
     }
-    const normalized = sourceRecords.filter((source): source is NonNullable<typeof source> => source !== undefined);
+    if (candidateCount > 0 && sourceRecords.length === 0 && rejectedCount > 0) {
+      throw new Error("FIRECRAWL_TARGET_STATUS_INVALID");
+    }
     return await persistAndBuildImmediateResult(
       context,
       "firecrawl_search_web",
-      { results: resultGroups },
-      normalized,
+      { results: resultGroups, rejectedDocuments: rejectedCount },
+      sourceRecords,
     );
   } catch (error) {
     return providerErrorResult(error);
