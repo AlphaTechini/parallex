@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env*
+!.env.example
+*.tsbuildinfo
+coverage/
+question_bank.md
+.agents/
+details.md
+schema.md
+firecrawl-research-routing.md
+three-minute-demo.md

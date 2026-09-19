@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - agentmail@0.5.27
+  - eslint@10.11.0
+  - openai@7.18.0
