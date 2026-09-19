@@ -209,7 +209,7 @@ export const createBot = mutation({
       .order("desc")
       .first();
     const creationOrdinal = (lastBot?.creationOrdinal ?? 0) + 1;
-    const avatarColorIndex = creationOrdinal % DEFAULT_AVATAR_COLORS;
+    const avatarColorIndex = (creationOrdinal - 1) % DEFAULT_AVATAR_COLORS;
 
     const identity = await ctx.auth.getUserIdentity();
     let profile = await ctx.db
