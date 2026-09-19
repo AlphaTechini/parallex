@@ -159,6 +159,65 @@ async function insertRunEvent(
   });
 }
 
+async function propagateScheduleOccurrenceTerminal(
+  ctx: MutationCtx,
+  run: Doc<"researchRuns">,
+  status: "completed" | "failed",
+  completedAt: number,
+  failureCode?: string,
+) {
+  if (run.triggerKind !== "schedule") return;
+  if (run.scheduleId === undefined || run.scheduleOccurrenceId === undefined) {
+    throw new Error("SCHEDULE_RUN_LINK_INVALID");
+  }
+
+  const occurrence = await ctx.db
+    .query("scheduleOccurrences")
+    .withIndex("by_run", (q) => q.eq("runId", run._id))
+    .unique();
+  if (occurrence === null) throw new Error("SCHEDULE_OCCURRENCE_NOT_FOUND");
+
+  const schedule = await ctx.db.get("researchSchedules", occurrence.scheduleId);
+  if (
+    schedule === null ||
+    occurrence._id !== run.scheduleOccurrenceId ||
+    occurrence.ownerId !== run.ownerId ||
+    occurrence.scheduleId !== run.scheduleId ||
+    occurrence.runId !== run._id ||
+    schedule._id !== run.scheduleId ||
+    schedule.ownerId !== run.ownerId ||
+    schedule.botId !== run.botId ||
+    schedule.chatId !== run.chatId
+  ) {
+    throw new Error("SCHEDULE_OCCURRENCE_OWNERSHIP_INVALID");
+  }
+  if (
+    occurrence.status === "completed" ||
+    occurrence.status === "failed" ||
+    occurrence.status === "skipped"
+  ) {
+    return;
+  }
+  if (occurrence.status !== "run_created") {
+    throw new Error("SCHEDULE_OCCURRENCE_STATE_INVALID");
+  }
+
+  await ctx.db.patch("scheduleOccurrences", occurrence._id, {
+    status,
+    failureCode: status === "failed" ? failureCode?.slice(0, 200) : undefined,
+    completedAt,
+  });
+  if (status === "completed") {
+    await ctx.db.patch("researchSchedules", schedule._id, {
+      lastSuccessfulRunAt: Math.max(
+        schedule.lastSuccessfulRunAt ?? 0,
+        completedAt,
+      ),
+      updatedAt: completedAt,
+    });
+  }
+}
+
 async function insertFunctionCall(
   ctx: MutationCtx,
   run: Doc<"researchRuns">,
@@ -269,6 +328,13 @@ async function terminalizeRun(
     updatedAt: now,
     ...fields,
   });
+  await propagateScheduleOccurrenceTerminal(
+    ctx,
+    run,
+    status,
+    fields.completedAt ?? fields.failedAt ?? now,
+    fields.failureCode,
+  );
   const chat = await ctx.db.get("chats", run.chatId);
   if (chat !== null && chat.activeRunId === run._id) {
     await ctx.db.patch("chats", chat._id, {
@@ -289,6 +355,13 @@ export const promoteNextQueuedRun = internalMutation({
       )
       .collect();
     for (const canceled of canceledRuns) {
+      await propagateScheduleOccurrenceTerminal(
+        ctx,
+        canceled,
+        "failed",
+        canceled.updatedAt,
+        "run_canceled",
+      );
       if (canceled.openaiResponseId !== undefined) {
         const response = await ctx.db
           .query("openaiResponses")
@@ -564,10 +637,26 @@ export const beginInitialResponse = internalMutation({
       .collect();
     const active = responses.find((response) => response.status === "active");
     if (active !== undefined) return { state: "active" as const, response: active };
-    const creating = responses.find((response) => response.status === "creating");
+    const creatingResponses = responses.filter(
+      (response) => response.status === "creating",
+    );
+    if (creatingResponses.length > 1) {
+      throw new Error("RESPONSE_INTENT_CONFLICT");
+    }
+    const creating = creatingResponses[0];
     if (creating !== undefined) {
-      await ctx.db.patch("openaiResponses", creating._id, { status: "abandoned" });
-      return { state: "ambiguous" as const };
+      if (
+        creating.kind !== "initial" ||
+        creating.parentResponseId !== undefined ||
+        creating.conversationId !== run.openaiConversationId ||
+        creating.responseId !== undefined
+      ) {
+        return { state: "not_initial" as const };
+      }
+      await ctx.db.patch("openaiResponses", creating._id, {
+        generation: args.generation,
+      });
+      return { state: "created" as const, intentId: creating._id };
     }
     if (responses.length > 0) return { state: "not_initial" as const };
 
@@ -625,17 +714,6 @@ export const activateResponseIntent = internalMutation({
       currentStage: mapRunStatusToUiStage("researching"),
       updatedAt: now,
     });
-    return { ok: true };
-  },
-});
-
-export const abandonResponseIntent = internalMutation({
-  args: { intentId: v.id("openaiResponses"), runId: v.id("researchRuns") },
-  handler: async (ctx, args) => {
-    const intent = await ctx.db.get("openaiResponses", args.intentId);
-    if (intent !== null && intent.runId === args.runId && intent.status === "creating") {
-      await ctx.db.patch("openaiResponses", intent._id, { status: "abandoned" });
-    }
     return { ok: true };
   },
 });
@@ -985,16 +1063,10 @@ export const prepareToolContinuation = internalMutation({
     ) {
       throw new Error("ORIGIN_RESPONSE_INVALID");
     }
-    if (origin.toolOutputsSubmitted) return { state: "already_submitted" as const };
     const responses = await ctx.db
       .query("openaiResponses")
       .withIndex("by_run", (q) => q.eq("runId", run._id))
       .collect();
-    const creating = responses.find((response) => response.status === "creating");
-    if (creating !== undefined) {
-      await ctx.db.patch("openaiResponses", creating._id, { status: "abandoned" });
-      return { state: "ambiguous" as const };
-    }
     if (responses.some((response) => response.status === "active")) {
       return { state: "active" as const };
     }
@@ -1004,7 +1076,11 @@ export const prepareToolContinuation = internalMutation({
       .withIndex("by_run_requested", (q) => q.eq("runId", run._id))
       .collect())
       .filter((call) => call.originResponseId === args.originResponseId)
-      .sort((left, right) => left.requestedAt - right.requestedAt);
+      .sort(
+        (left, right) =>
+          left.requestedAt - right.requestedAt ||
+          left._creationTime - right._creationTime,
+      );
     if (
       calls.length === 0 ||
       calls.some(
@@ -1012,6 +1088,49 @@ export const prepareToolContinuation = internalMutation({
       )
     ) {
       return { state: "waiting" as const };
+    }
+
+    const outputs = calls.map((call) => ({
+      type: "function_call_output" as const,
+      call_id: call.openaiCallId,
+      output:
+        call.resultJson ??
+        JSON.stringify({
+          ok: false,
+          error: {
+            code: "missing_tool_output",
+            message: "The function ended without a usable output.",
+            retryable: false,
+          },
+        }),
+    }));
+    const creatingResponses = responses.filter(
+      (response) => response.status === "creating",
+    );
+    if (creatingResponses.length > 1) {
+      throw new Error("RESPONSE_INTENT_CONFLICT");
+    }
+    const creating = creatingResponses[0];
+    if (creating !== undefined) {
+      if (
+        creating.kind !== "tool_continuation" ||
+        creating.parentResponseId !== args.originResponseId ||
+        creating.conversationId !== run.openaiConversationId ||
+        creating.responseId !== undefined
+      ) {
+        throw new Error("RESPONSE_INTENT_CONFLICT");
+      }
+      await ctx.db.patch("openaiResponses", creating._id, {
+        generation: args.generation,
+      });
+      return {
+        state: "created" as const,
+        intentId: creating._id,
+        outputs,
+      };
+    }
+    if (origin.toolOutputsSubmitted) {
+      return { state: "already_submitted" as const };
     }
 
     await ctx.db.patch("openaiResponses", origin._id, {
@@ -1031,20 +1150,7 @@ export const prepareToolContinuation = internalMutation({
     return {
       state: "created" as const,
       intentId,
-      outputs: calls.map((call) => ({
-        type: "function_call_output" as const,
-        call_id: call.openaiCallId,
-        output:
-          call.resultJson ??
-          JSON.stringify({
-            ok: false,
-            error: {
-              code: "missing_tool_output",
-              message: "The function ended without a usable output.",
-              retryable: false,
-            },
-          }),
-      })),
+      outputs,
     };
   },
 });
@@ -1141,9 +1247,19 @@ export const failRun = internalMutation({
     }
     if (args.intentId !== undefined) {
       const intent = await ctx.db.get("openaiResponses", args.intentId);
-      if (intent !== null && intent.runId === run._id && intent.status === "creating") {
-        await ctx.db.patch("openaiResponses", intent._id, { status: "abandoned" });
+      if (
+        args.generation === undefined ||
+        intent === null ||
+        intent.runId !== run._id ||
+        intent.ownerId !== run.ownerId ||
+        intent.generation !== args.generation ||
+        intent.status !== "creating"
+      ) {
+        throw new Error("RESPONSE_INTENT_INVALID");
       }
+      await ctx.db.patch("openaiResponses", intent._id, {
+        status: "abandoned",
+      });
     }
     const now = Date.now();
     await ctx.db.patch("messages", assistantMessage._id, {

@@ -47,6 +47,7 @@ import type * as tools_firecrawl_extractMedia from "../tools/firecrawl/extractMe
 import type * as tools_firecrawl_extractStructured from "../tools/firecrawl/extractStructured.js";
 import type * as tools_firecrawl_interactPage from "../tools/firecrawl/interactPage.js";
 import type * as tools_firecrawl_mapSite from "../tools/firecrawl/mapSite.js";
+import type * as tools_firecrawl_outputBudget from "../tools/firecrawl/outputBudget.js";
 import type * as tools_firecrawl_parseDocument from "../tools/firecrawl/parseDocument.js";
 import type * as tools_firecrawl_queryPage from "../tools/firecrawl/queryPage.js";
 import type * as tools_firecrawl_scrapePage from "../tools/firecrawl/scrapePage.js";
@@ -114,6 +115,7 @@ declare const fullApi: ApiFromModules<{
   "tools/firecrawl/extractStructured": typeof tools_firecrawl_extractStructured;
   "tools/firecrawl/interactPage": typeof tools_firecrawl_interactPage;
   "tools/firecrawl/mapSite": typeof tools_firecrawl_mapSite;
+  "tools/firecrawl/outputBudget": typeof tools_firecrawl_outputBudget;
   "tools/firecrawl/parseDocument": typeof tools_firecrawl_parseDocument;
   "tools/firecrawl/queryPage": typeof tools_firecrawl_queryPage;
   "tools/firecrawl/scrapePage": typeof tools_firecrawl_scrapePage;

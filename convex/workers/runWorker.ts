@@ -2,7 +2,10 @@
 
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalAction, type ActionCtx } from "../_generated/server";
-import { createOpenAIClient } from "../lib/openaiClient";
+import {
+  createOpenAIClient,
+  openAIResponseCreationIdempotencyKey,
+} from "../lib/openaiClient";
 import { decryptString } from "../lib/crypto";
 import { sanitizeErrorCode } from "../lib/normalize";
 import { buildResearchInstructions } from "../prompts/researchProtocol";
@@ -56,6 +59,12 @@ type StreamOutcome =
   | { state: "active"; responseId?: string }
   | { state: "completed"; responseId: string; finalText: string }
   | {
+      state: "creation_failed";
+      intentId: Id<"openaiResponses">;
+      code: string;
+      safeMessage: string;
+    }
+  | {
       state: "failed";
       responseId: string;
       code: string;
@@ -94,7 +103,7 @@ const beginInitialResponse = makeFunctionReference<
   { runId: Id<"researchRuns">; generation: number },
   | { state: "created"; intentId: Id<"openaiResponses"> }
   | { state: "active"; response: Doc<"openaiResponses"> }
-  | { state: "ambiguous" | "not_initial" }
+  | { state: "not_initial" }
 >("workers/runMutations:beginInitialResponse");
 const activateResponseIntent = makeFunctionReference<
   "mutation",
@@ -106,11 +115,6 @@ const activateResponseIntent = makeFunctionReference<
   },
   { ok: boolean }
 >("workers/runMutations:activateResponseIntent");
-const abandonResponseIntent = makeFunctionReference<
-  "mutation",
-  { intentId: Id<"openaiResponses">; runId: Id<"researchRuns"> },
-  { ok: boolean }
->("workers/runMutations:abandonResponseIntent");
 const checkpointResponseEvent = makeFunctionReference<
   "mutation",
   {
@@ -183,7 +187,7 @@ const prepareToolContinuation = makeFunctionReference<
       }>;
     }
   | {
-      state: "already_submitted" | "ambiguous" | "active" | "waiting";
+      state: "already_submitted" | "active" | "waiting";
     }
 >("workers/runMutations:prepareToolContinuation");
 const yieldRun = makeFunctionReference<
@@ -282,6 +286,42 @@ function isAbortFromSlice(error: unknown, signal: AbortSignal): boolean {
     error !== null &&
     "name" in error &&
     (error as { name?: unknown }).name === "APIUserAbortError"
+  );
+}
+
+function providerErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return undefined;
+  }
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
+}
+
+function isDefinitiveResponseCreationFailure(error: unknown): boolean {
+  const status = providerErrorStatus(error);
+  return (
+    status !== undefined &&
+    status >= 400 &&
+    status < 500 &&
+    status !== 408 &&
+    status !== 409 &&
+    status !== 429
+  );
+}
+
+function isRetryableResponseCreationFailure(error: unknown): boolean {
+  const status = providerErrorStatus(error);
+  if (status !== undefined) {
+    return status === 408 || status === 409 || status === 429 || status >= 500;
+  }
+  if (typeof error !== "object" || error === null) return false;
+  const name =
+    "name" in error && typeof (error as { name?: unknown }).name === "string"
+      ? (error as { name: string }).name
+      : "";
+  const constructorName = error.constructor.name;
+  return [name, constructorName].some((candidate) =>
+    /^APIConnection(?:Timeout)?Error$/.test(candidate),
   );
 }
 
@@ -420,10 +460,13 @@ async function createResponse(
     availableStreamSlice(context),
   );
   try {
-    const stream = await client.responses.create(request, {
-      idempotencyKey: `parallex-response-${intentId}`,
-      signal: controller.signal,
-    });
+    const stream = await client.responses.create(
+      request,
+      {
+        idempotencyKey: openAIResponseCreationIdempotencyKey(intentId),
+        signal: controller.signal,
+      },
+    );
     const outcome = await consumeProviderStream(
       ctx,
       args,
@@ -432,13 +475,24 @@ async function createResponse(
       undefined,
       intentId,
     );
-    if (outcome.state === "active" && outcome.responseId === undefined) {
-      await ctx.runMutation(abandonResponseIntent, {
-        intentId,
-        runId: args.runId,
-      });
-    }
     return outcome;
+  } catch (error) {
+    if (isAbortFromSlice(error, controller.signal)) {
+      return { state: "active" };
+    }
+    if (isDefinitiveResponseCreationFailure(error)) {
+      const failure = safeWorkerFailure(error);
+      return {
+        state: "creation_failed",
+        intentId,
+        code: failure.code,
+        safeMessage: failure.message,
+      };
+    }
+    if (isRetryableResponseCreationFailure(error)) {
+      return { state: "active" };
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -612,15 +666,6 @@ async function handleCompletedResponse(
     ...args,
     originResponseId: responseId,
   });
-  if (continuation.state === "ambiguous") {
-    await failSafely(
-      ctx,
-      args,
-      "ambiguous_response_creation",
-      "A provider response may have started without a recoverable response identifier.",
-    );
-    return;
-  }
   if (continuation.state !== "created") {
     if (continuation.state === "waiting") {
       await ctx.runMutation(yieldRun, {
@@ -629,23 +674,15 @@ async function handleCompletedResponse(
       });
       return;
     }
-    throw new Error(`INVALID_CONTINUATION_STATE:${continuation.state}`);
+    await ctx.runMutation(yieldRun, { ...args, delayMs: 0 });
+    return;
   }
-  let outcome: StreamOutcome;
-  try {
-    outcome = await createResponse(
-      ctx,
-      args,
-      continuation.intentId,
-      continuation.outputs as ResponseInput,
-    );
-  } catch (error) {
-    await ctx.runMutation(abandonResponseIntent, {
-      intentId: continuation.intentId,
-      runId: args.runId,
-    });
-    throw error;
-  }
+  const outcome = await createResponse(
+    ctx,
+    args,
+    continuation.intentId,
+    continuation.outputs as ResponseInput,
+  );
   await handleStreamOutcome(ctx, args, outcome);
 }
 
@@ -656,15 +693,20 @@ async function handleStreamOutcome(
 ) {
   if (outcome.state === "active") {
     if (outcome.responseId === undefined) {
-      await failSafely(
-        ctx,
-        args,
-        "ambiguous_response_creation",
-        "A provider response may have started without a recoverable response identifier.",
-      );
+      await ctx.runMutation(yieldRun, { ...args, delayMs: 0 });
       return;
     }
     await ctx.runMutation(yieldRun, { ...args, delayMs: 0 });
+    return;
+  }
+  if (outcome.state === "creation_failed") {
+    await failSafely(
+      ctx,
+      args,
+      outcome.code,
+      outcome.safeMessage,
+      outcome.intentId,
+    );
     return;
   }
   if (outcome.state === "failed") {
@@ -740,22 +782,6 @@ export const drive = internalAction({
       }
 
       context = await ctx.runMutation(getRunContext, args);
-      const creating = context.responses.find(
-        (response) => response.status === "creating",
-      );
-      if (creating !== undefined) {
-        await ctx.runMutation(abandonResponseIntent, {
-          intentId: creating._id,
-          runId: args.runId,
-        });
-        await failSafely(
-          ctx,
-          args,
-          "ambiguous_response_creation",
-          "A provider response may have started without a recoverable response identifier.",
-        );
-        return { ok: false, claimed: true };
-      }
       const active = context.responses.find(
         (response) => response.status === "active",
       );
@@ -785,33 +811,15 @@ export const drive = internalAction({
       }
 
       const initial = await ctx.runMutation(beginInitialResponse, args);
-      if (initial.state === "ambiguous") {
-        await failSafely(
-          ctx,
-          args,
-          "ambiguous_response_creation",
-          "A provider response may have started without a recoverable response identifier.",
-        );
-        return { ok: false, claimed: true };
-      }
       if (initial.state !== "created") {
         throw new Error(`INVALID_INITIAL_RESPONSE_STATE:${initial.state}`);
       }
-      let outcome: StreamOutcome;
-      try {
-        outcome = await createResponse(
-          ctx,
-          args,
-          initial.intentId,
-          providerInput(context),
-        );
-      } catch (error) {
-        await ctx.runMutation(abandonResponseIntent, {
-          intentId: initial.intentId,
-          runId: args.runId,
-        });
-        throw error;
-      }
+      const outcome = await createResponse(
+        ctx,
+        args,
+        initial.intentId,
+        providerInput(context),
+      );
       await handleStreamOutcome(ctx, args, outcome);
       return { ok: true, claimed: true };
     } catch (error) {
