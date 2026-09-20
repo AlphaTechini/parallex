@@ -1,5 +1,6 @@
 const SAFE_ERRORS: Record<string, string> = {
   NO_OPENAI_KEY: "Add your OpenAI API key in Settings before starting research.",
+  NO_ZHIPU_KEY: "Add your Zhipu API key in Settings before starting research.",
   SUBMISSION_CONFLICT: "This request was already used for a different message.",
   EMAIL_BOT_LIMIT: "The demo supports up to three email-enabled bots.",
   MISSION_TOO_LONG: "Mission must be 500 characters or fewer.",

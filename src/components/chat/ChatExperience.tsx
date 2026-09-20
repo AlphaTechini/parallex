@@ -13,6 +13,7 @@ import { RunStatusBanner } from "@/components/chat/RunStatusBanner";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { isRunActive } from "@/lib/runStatus";
+import type { ProviderId } from "@/lib/models";
 
 export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
   const chat = useQuery(api.chats.getChat, { chatId });
@@ -20,7 +21,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
     api.bots.getBot,
     chat ? { botId: chat.botId } : "skip",
   );
-  const credential = useQuery(api.credentials.getOpenAICredentialStatus, {});
+  const credentials = useQuery(api.credentials.getProviderCredentialStatuses, {});
   const run = useQuery(
     api.runs.getRun,
     chat?.activeRunId ? { runId: chat.activeRunId } : "skip",
@@ -31,7 +32,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
     { initialNumItems: 50 },
   );
 
-  if (chat === undefined || bot === undefined || credential === undefined) {
+  if (chat === undefined || bot === undefined || credentials === undefined) {
     return <div className="page-loading"><Spinner label="Loading chat" /></div>;
   }
   if (chat === null || bot === null) {
@@ -40,6 +41,10 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
 
   const messages = [...resultsDesc].reverse();
   const active = isRunActive(run?.status);
+  const configuredProviders: ProviderId[] = [
+    ...(credentials.openai ? (["openai"] as const) : []),
+    ...(credentials.zhipu ? (["zhipu"] as const) : []),
+  ];
 
   return (
     <div className="chat-layout">
@@ -78,7 +83,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
         </div>
         <Composer
           chatId={chatId}
-          credentialConfigured={credential.configured}
+          configuredProviders={configuredProviders}
           runActive={active}
         />
       </section>

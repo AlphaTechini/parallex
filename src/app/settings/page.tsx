@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { GlobalMemoryForm } from "@/components/settings/GlobalMemoryForm";
 import { OpenAIKeyForm } from "@/components/settings/OpenAIKeyForm";
+import { ZhipuKeyForm } from "@/components/settings/ZhipuKeyForm";
 
 export default function SettingsPage() {
   return (
@@ -14,6 +15,7 @@ export default function SettingsPage() {
       </div>
       <div className="settings-grid">
         <OpenAIKeyForm />
+        <ZhipuKeyForm />
         <GlobalMemoryForm />
       </div>
     </AppShell>
