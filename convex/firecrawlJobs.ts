@@ -1,4 +1,3 @@
-import { makeFunctionReference } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   internalMutation,
@@ -10,16 +9,12 @@ import {
   FIRECRAWL_OUTPUT_BUDGET,
 } from "./tools/firecrawl/outputBudget";
 import { upsertSourceRecords } from "./sources";
+import { scheduleRunDrive } from "./lib/runScheduling";
 import { v } from "convex/values";
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "canceled"]);
 const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "canceled", "closed"]);
 const TOOL_WATCHDOG_MS = 6 * 60 * 1000;
-
-const driveRun = makeFunctionReference<
-  "action",
-  { runId: Id<"researchRuns">; generation: number }
->("workers/runWorker:drive");
 
 const capabilityValidator = v.union(
   v.literal("firecrawl_search_web"),
@@ -186,14 +181,18 @@ async function completeToolCallInTransaction(
         candidate.status === "succeeded" || candidate.status === "failed",
     );
     if (allTerminal) {
-      await ctx.scheduler.runAfter(0, driveRun, {
-        runId: graph.run._id,
-        generation: graph.run.workerGeneration + 1,
-      });
-      await ctx.scheduler.runAfter(TOOL_WATCHDOG_MS, driveRun, {
-        runId: graph.run._id,
-        generation: graph.run.workerGeneration + 2,
-      });
+      await scheduleRunDrive(
+        ctx,
+        graph.run,
+        graph.run.workerGeneration + 1,
+        0,
+      );
+      await scheduleRunDrive(
+        ctx,
+        graph.run,
+        graph.run.workerGeneration + 2,
+        TOOL_WATCHDOG_MS,
+      );
     }
   }
   return { alreadyTerminal: false };

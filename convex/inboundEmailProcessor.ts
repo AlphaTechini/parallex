@@ -1,13 +1,16 @@
-import { makeFunctionReference } from "convex/server";
 import { internalMutation, type MutationCtx } from "./_generated/server";
+import { providerForRun, type ProviderId } from "./lib/models";
+import { getActiveProviderCredential } from "./lib/providerCredentials";
+import { scheduleRunDrive } from "./lib/runScheduling";
 import { mapRunStatusToUiStage } from "./lib/stageMap";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 
-const driveRun = makeFunctionReference<"action">("workers/runWorker:drive");
 const WATCHDOG_MS = 6 * 60 * 1000;
 const DEFAULT_MODEL = "gpt-5.6-terra" as const;
 const DEFAULT_EFFORT = "medium" as const;
+const DEFAULT_ZHIPU_MODEL = "glm-5.3-flash" as const;
+const DEFAULT_ZHIPU_EFFORT = "high" as const;
 const NONTERMINAL_RUN_STATUSES = new Set([
   "accepted",
   "queued",
@@ -191,8 +194,30 @@ export const processInbound = internalMutation({
       .withIndex("by_chat_created", (q) => q.eq("chatId", chat!._id))
       .order("desc")
       .first();
-    const model = latestRun?.ownerId === inbox.ownerId ? latestRun.model : DEFAULT_MODEL;
-    const reasoningEffort = latestRun?.ownerId === inbox.ownerId ? latestRun.reasoningEffort : DEFAULT_EFFORT;
+    const ownedLatestRun = latestRun?.ownerId === inbox.ownerId ? latestRun : null;
+    const [openaiCredential, zhipuCredential] = await Promise.all([
+      getActiveProviderCredential(ctx, inbox.ownerId, "openai"),
+      getActiveProviderCredential(ctx, inbox.ownerId, "zhipu"),
+    ]);
+    let provider: ProviderId =
+      ownedLatestRun === null ? "openai" : providerForRun(ownedLatestRun);
+    if (provider === "openai" && openaiCredential === null && zhipuCredential !== null) {
+      provider = "zhipu";
+    } else if (
+      provider === "zhipu" &&
+      zhipuCredential === null &&
+      openaiCredential !== null
+    ) {
+      provider = "openai";
+    }
+    const preservesLatestProvider =
+      ownedLatestRun !== null && provider === providerForRun(ownedLatestRun);
+    const model =
+      (preservesLatestProvider ? ownedLatestRun.model : undefined) ??
+      (provider === "zhipu" ? DEFAULT_ZHIPU_MODEL : DEFAULT_MODEL);
+    const reasoningEffort =
+      (preservesLatestProvider ? ownedLatestRun.reasoningEffort : undefined) ??
+      (provider === "zhipu" ? DEFAULT_ZHIPU_EFFORT : DEFAULT_EFFORT);
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_owner", (q) => q.eq("ownerId", inbox.ownerId))
@@ -245,6 +270,7 @@ export const processInbound = internalMutation({
       chatId: chat._id,
       triggerMessageId: messageId,
       triggerKind: "email",
+      provider,
       model,
       reasoningEffort,
       globalInstructionVersionId,
@@ -287,8 +313,9 @@ export const processInbound = internalMutation({
         lastMessageAt: now,
         updatedAt: now,
       });
-      await ctx.scheduler.runAfter(0, driveRun, { runId, generation: 1 });
-      await ctx.scheduler.runAfter(WATCHDOG_MS, driveRun, { runId, generation: 2 });
+      const run = { _id: runId, provider, model };
+      await scheduleRunDrive(ctx, run, 1, 0);
+      await scheduleRunDrive(ctx, run, 2, WATCHDOG_MS);
     }
     return { ok: true, runId, queued };
   },

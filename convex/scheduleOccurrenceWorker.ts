@@ -1,12 +1,14 @@
 import { makeFunctionReference } from "convex/server";
 import { internalMutation, type MutationCtx } from "./_generated/server";
+import { providerForRun } from "./lib/models";
 import { occurrenceKey } from "./lib/normalize";
+import { getActiveProviderCredential } from "./lib/providerCredentials";
 import { nextOccurrence } from "./lib/recurrence";
+import { scheduleRunDrive } from "./lib/runScheduling";
 import { mapRunStatusToUiStage } from "./lib/stageMap";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 
-const driveRun = makeFunctionReference<"action">("workers/runWorker:drive");
 const occurrenceWorker = makeFunctionReference<
   "mutation",
   { scheduleId: Id<"researchSchedules">; scheduledFor: number }
@@ -133,11 +135,23 @@ export const run = internalMutation({
       .unique();
     if (duplicate !== null) return { ok: true, duplicate: true, runId: duplicate.runId };
 
-    const credential = await ctx.db
-      .query("openaiCredentials")
-      .withIndex("by_owner_status", (q) => q.eq("ownerId", schedule.ownerId).eq("status", "active"))
-      .first();
-    if (credential === null) return await markSkipped(ctx, schedule, args.scheduledFor, "openai_credential_unavailable");
+    const provider = schedule.provider ?? providerForRun(creatorRun);
+    const model = schedule.model ?? creatorRun.model ?? DEFAULT_MODEL;
+    const reasoningEffort =
+      schedule.reasoningEffort ?? creatorRun.reasoningEffort ?? DEFAULT_EFFORT;
+    const credential = await getActiveProviderCredential(
+      ctx,
+      schedule.ownerId,
+      provider,
+    );
+    if (credential === null) {
+      return await markSkipped(
+        ctx,
+        schedule,
+        args.scheduledFor,
+        `${provider}_credential_unavailable`,
+      );
+    }
 
     const profile = await ctx.db
       .query("userProfiles")
@@ -198,8 +212,9 @@ export const run = internalMutation({
       triggerKind: "schedule",
       scheduleId: schedule._id,
       scheduleOccurrenceId: occurrenceId,
-      model: DEFAULT_MODEL,
-      reasoningEffort: DEFAULT_EFFORT,
+      provider,
+      model,
+      reasoningEffort,
       globalInstructionVersionId,
       botInstructionVersionId,
       researchProtocolVersion: 1,
@@ -239,8 +254,9 @@ export const run = internalMutation({
         lastMessageAt: now,
         updatedAt: now,
       });
-      await ctx.scheduler.runAfter(0, driveRun, { runId, generation: 1 });
-      await ctx.scheduler.runAfter(WATCHDOG_MS, driveRun, { runId, generation: 2 });
+      const run = { _id: runId, provider, model };
+      await scheduleRunDrive(ctx, run, 1, 0);
+      await scheduleRunDrive(ctx, run, 2, WATCHDOG_MS);
     }
     await scheduleNext(ctx, schedule, args.scheduledFor);
     return { ok: true, runId, queued };

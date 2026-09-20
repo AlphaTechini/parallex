@@ -26,8 +26,14 @@ import type * as lib_firecrawlClient from "../lib/firecrawlClient.js";
 import type * as lib_models from "../lib/models.js";
 import type * as lib_normalize from "../lib/normalize.js";
 import type * as lib_openaiClient from "../lib/openaiClient.js";
+import type * as lib_providerCredentials from "../lib/providerCredentials.js";
+import type * as lib_providerPrompt from "../lib/providerPrompt.js";
 import type * as lib_recurrence from "../lib/recurrence.js";
+import type * as lib_runGraph from "../lib/runGraph.js";
+import type * as lib_runScheduling from "../lib/runScheduling.js";
 import type * as lib_stageMap from "../lib/stageMap.js";
+import type * as lib_toolCallPersistence from "../lib/toolCallPersistence.js";
+import type * as lib_zhipuClient from "../lib/zhipuClient.js";
 import type * as messages from "../messages.js";
 import type * as prompts_researchProtocol from "../prompts/researchProtocol.js";
 import type * as reports from "../reports.js";
@@ -68,6 +74,8 @@ import type * as workers_runMutations from "../workers/runMutations.js";
 import type * as workers_runWorker from "../workers/runWorker.js";
 import type * as workers_streamConsumer from "../workers/streamConsumer.js";
 import type * as workers_toolExecutor from "../workers/toolExecutor.js";
+import type * as workers_zhipuRunMutations from "../workers/zhipuRunMutations.js";
+import type * as workers_zhipuRunWorker from "../workers/zhipuRunWorker.js";
 
 import type {
   ApiFromModules,
@@ -94,8 +102,14 @@ declare const fullApi: ApiFromModules<{
   "lib/models": typeof lib_models;
   "lib/normalize": typeof lib_normalize;
   "lib/openaiClient": typeof lib_openaiClient;
+  "lib/providerCredentials": typeof lib_providerCredentials;
+  "lib/providerPrompt": typeof lib_providerPrompt;
   "lib/recurrence": typeof lib_recurrence;
+  "lib/runGraph": typeof lib_runGraph;
+  "lib/runScheduling": typeof lib_runScheduling;
   "lib/stageMap": typeof lib_stageMap;
+  "lib/toolCallPersistence": typeof lib_toolCallPersistence;
+  "lib/zhipuClient": typeof lib_zhipuClient;
   messages: typeof messages;
   "prompts/researchProtocol": typeof prompts_researchProtocol;
   reports: typeof reports;
@@ -136,6 +150,8 @@ declare const fullApi: ApiFromModules<{
   "workers/runWorker": typeof workers_runWorker;
   "workers/streamConsumer": typeof workers_streamConsumer;
   "workers/toolExecutor": typeof workers_toolExecutor;
+  "workers/zhipuRunMutations": typeof workers_zhipuRunMutations;
+  "workers/zhipuRunWorker": typeof workers_zhipuRunWorker;
 }>;
 
 /**

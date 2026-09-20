@@ -4,6 +4,7 @@ import { normalizeRecurrence, isValidTimeZone } from "../lib/recurrence";
 import { v } from "convex/values";
 import type { ExecutorResult, ToolExecutionContext } from "./types";
 import type { Id } from "../_generated/dataModel";
+import { providerForRun } from "../lib/models";
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "canceled"]);
 
@@ -148,6 +149,9 @@ export const createScheduleMutation = internalMutation({
       botId: bot._id,
       chatId: chat._id,
       createdByRunId: run._id,
+      provider: providerForRun(run),
+      model: run.model,
+      reasoningEffort: run.reasoningEffort,
       name,
       researchPrompt,
       semanticReason,

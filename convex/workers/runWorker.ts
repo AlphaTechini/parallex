@@ -8,6 +8,8 @@ import {
 } from "../lib/openaiClient";
 import { decryptString } from "../lib/crypto";
 import { sanitizeErrorCode } from "../lib/normalize";
+import { providerForRun } from "../lib/models";
+import { buildProviderInput } from "../lib/providerPrompt";
 import { buildResearchInstructions } from "../prompts/researchProtocol";
 import { getResearchToolDefinitions } from "../tools/definitions";
 import {
@@ -43,6 +45,8 @@ type RunContext = {
     sizeBytes: number;
   }>;
   priorReportSummary?: string;
+  seedLocalHistory: boolean;
+  localHistory: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
 type ToolExecutorResult =
@@ -95,6 +99,7 @@ const setRunConversation = makeFunctionReference<
     runId: Id<"researchRuns">;
     generation: number;
     conversationId: string;
+    replaceChatConversation?: boolean;
   },
   { conversationId: string }
 >("workers/runMutations:setRunConversation");
@@ -222,24 +227,16 @@ const executeToolCall = makeFunctionReference<
   ToolExecutorResult
 >("workers/toolExecutor:executeToolCall");
 
-function providerInput(context: RunContext): string {
-  const sections = [context.triggerMessage.content];
-  if (context.attachments.length > 0) {
-    sections.push(
-      `Approved attachments for this request:\n${context.attachments
-        .map(
-          (attachment) =>
-            `- attachmentId=${attachment.id}; name=${attachment.fileName}; type=${attachment.mimeType}; bytes=${attachment.sizeBytes}`,
-        )
-        .join("\n")}`,
-    );
-  }
-  if (context.run.triggerKind === "schedule" && context.priorReportSummary) {
-    sections.push(
-      `Bounded prior-report context for change comparison:\n${context.priorReportSummary}`,
-    );
-  }
-  return sections.join("\n\n");
+function openAIProviderInput(context: RunContext): string | ResponseInput {
+  const currentInput = buildProviderInput(context);
+  if (!context.seedLocalHistory) return currentInput;
+  return [
+    ...context.localHistory.map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+    { role: "user", content: currentInput },
+  ] as ResponseInput;
 }
 
 function checkpointArgs(
@@ -758,10 +755,14 @@ export const drive = internalAction({
 
     try {
       let context = await ctx.runMutation(getRunContext, args);
+      if (providerForRun(context.run) !== "openai") {
+        throw new Error("INVALID_OPENAI_RUN_PROVIDER");
+      }
       if (context.run.openaiConversationId === undefined) {
         if (
           context.run.triggerKind !== "schedule" &&
-          context.chat.openaiConversationId !== undefined
+          context.chat.openaiConversationId !== undefined &&
+          !context.seedLocalHistory
         ) {
           await ctx.runMutation(setRunConversation, {
             ...args,
@@ -777,6 +778,7 @@ export const drive = internalAction({
           await ctx.runMutation(setRunConversation, {
             ...args,
             conversationId: conversation.id,
+            replaceChatConversation: context.seedLocalHistory,
           });
         }
       }
@@ -818,7 +820,7 @@ export const drive = internalAction({
         ctx,
         args,
         initial.intentId,
-        providerInput(context),
+        openAIProviderInput(context),
       );
       await handleStreamOutcome(ctx, args, outcome);
       return { ok: true, claimed: true };

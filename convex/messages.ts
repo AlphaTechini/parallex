@@ -5,10 +5,16 @@ import {
   requireOwnedBot,
   requireOwnedChat,
 } from "./lib/authHelpers";
-import { isValidEffort, isValidModel } from "./lib/models";
+import {
+  isValidEffort,
+  isValidModel,
+  providerForModel,
+} from "./lib/models";
 import { sha256Hex } from "./lib/normalize";
+import { getActiveProviderCredential } from "./lib/providerCredentials";
+import { scheduleRunDrive } from "./lib/runScheduling";
 import { mapRunStatusToUiStage } from "./lib/stageMap";
-import { makeFunctionReference, paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 
 const NONTERMINAL_RUN_STATUSES = new Set([
@@ -21,8 +27,6 @@ const NONTERMINAL_RUN_STATUSES = new Set([
   "preparing_report",
   "sending_email",
 ]);
-
-const driveRun = makeFunctionReference<"action">("workers/runWorker:drive");
 
 export const listMessages = query({
   args: {
@@ -99,21 +103,17 @@ export const submitPrompt = mutation({
       throw new Error("BOT_ARCHIVED");
     }
 
-    const credential = await ctx.db
-      .query("openaiCredentials")
-      .withIndex("by_owner_status", (q) =>
-        q.eq("ownerId", ownerId).eq("status", "active"),
-      )
-      .first();
-    if (credential === null) {
-      throw new Error("NO_OPENAI_KEY");
-    }
-
     if (!isValidModel(args.model)) {
       throw new Error("INVALID_MODEL");
     }
     if (!isValidEffort(args.model, args.reasoningEffort)) {
       throw new Error("INVALID_REASONING_EFFORT");
+    }
+    const provider = providerForModel(args.model);
+    if (provider === null) throw new Error("INVALID_MODEL_PROVIDER");
+    const credential = await getActiveProviderCredential(ctx, ownerId, provider);
+    if (credential === null) {
+      throw new Error(provider === "zhipu" ? "NO_ZHIPU_KEY" : "NO_OPENAI_KEY");
     }
 
     const content = args.content.trim();
@@ -255,6 +255,7 @@ export const submitPrompt = mutation({
       chatId: chat._id,
       triggerMessageId: messageId,
       triggerKind: "web",
+      provider,
       model: args.model,
       reasoningEffort: args.reasoningEffort,
       globalInstructionVersionId,
@@ -300,11 +301,9 @@ export const submitPrompt = mutation({
     });
 
     if (!queued) {
-      await ctx.scheduler.runAfter(0, driveRun, { runId, generation: 1 });
-      await ctx.scheduler.runAfter(6 * 60 * 1000, driveRun, {
-        runId,
-        generation: 2,
-      });
+      const run = { _id: runId, provider, model: args.model };
+      await scheduleRunDrive(ctx, run, 1, 0);
+      await scheduleRunDrive(ctx, run, 2, 6 * 60 * 1000);
     }
 
     return { messageId, runId };

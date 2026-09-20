@@ -8,7 +8,11 @@ const model = v.union(
   v.literal("gpt-5.6-terra"),
   v.literal("gpt-5.6-sol"),
   v.literal("gpt-6-astra"),
+  v.literal("glm-5.3-flash"),
+  v.literal("glm-5.3"),
 );
+
+const modelProvider = v.union(v.literal("openai"), v.literal("zhipu"));
 
 const reasoningEffort = v.union(
   v.literal("none"),
@@ -109,6 +113,28 @@ const appTables = {
     .index("by_owner_bot", ["ownerId", "botId"]),
 
   openaiCredentials: defineTable({
+    ownerId: v.id("users"),
+    ciphertext: v.string(),
+    initializationVector: v.string(),
+    authenticationTag: v.optional(v.string()),
+    keyVersion: v.number(),
+    displayHint: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("invalid"),
+      v.literal("revoked"),
+      v.literal("deleted"),
+    ),
+    lastValidatedAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_owner", ["ownerId"])
+    .index("by_owner_status", ["ownerId", "status"]),
+
+  zhipuCredentials: defineTable({
     ownerId: v.id("users"),
     ciphertext: v.string(),
     initializationVector: v.string(),
@@ -260,6 +286,7 @@ const appTables = {
     ),
     scheduleId: v.optional(v.id("researchSchedules")),
     scheduleOccurrenceId: v.optional(v.id("scheduleOccurrences")),
+    provider: v.optional(modelProvider),
     model,
     reasoningEffort,
     globalInstructionVersionId: v.optional(v.id("instructionVersions")),
@@ -554,6 +581,9 @@ const appTables = {
     botId: v.id("bots"),
     chatId: v.id("chats"),
     createdByRunId: v.id("researchRuns"),
+    provider: v.optional(modelProvider),
+    model: v.optional(model),
+    reasoningEffort: v.optional(reasoningEffort),
     name: v.string(),
     researchPrompt: v.string(),
     semanticReason: v.string(),
@@ -639,6 +669,25 @@ const appTables = {
     .index("by_run", ["runId"])
     .index("by_response_id", ["responseId"])
     .index("by_run_status", ["runId", "status"]),
+
+  zhipuTurns: defineTable({
+    ownerId: v.id("users"),
+    runId: v.id("researchRuns"),
+    sequence: v.number(),
+    generation: v.number(),
+    status: v.union(
+      v.literal("creating"),
+      v.literal("completed"),
+      v.literal("abandoned"),
+    ),
+    providerCompletionId: v.optional(v.string()),
+    assistantContent: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_run_sequence", ["runId", "sequence"])
+    .index("by_run_status", ["runId", "status"])
+    .index("by_provider_completion", ["providerCompletionId"]),
 
   storageOwnership: defineTable({
     ownerId: v.id("users"),

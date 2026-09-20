@@ -1,11 +1,16 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { sha256Hex, toolKey } from "../lib/normalize";
+import { providerForRun } from "../lib/models";
+import { getActiveProviderCredential } from "../lib/providerCredentials";
+import { loadRunGraph } from "../lib/runGraph";
+import { scheduleRunDrive } from "../lib/runScheduling";
+import {
+  insertFunctionCall,
+  insertRunEvent,
+} from "../lib/toolCallPersistence";
 import { mapRunStatusToUiStage } from "../lib/stageMap";
 import {
-  isToolFunctionName,
   toolPhase,
-  validateToolArguments,
 } from "../tools/definitions";
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
@@ -26,7 +31,6 @@ const NONTERMINAL_RUN_STATUSES = new Set([
   "sending_email",
 ]);
 
-const driveRun = makeFunctionReference<"action">("workers/runWorker:drive");
 const abortRun = makeFunctionReference<"action">("workers/runWorker:abort");
 const replyForEmailRun = makeFunctionReference<"action">(
   "workers/emailSender:replyForEmailRun",
@@ -38,46 +42,15 @@ const functionCallValidator = v.object({
   argumentsJson: v.string(),
 });
 
-async function loadRunGraph(ctx: MutationCtx, runId: Id<"researchRuns">) {
-  const run = await ctx.db.get("researchRuns", runId);
-  if (run === null) throw new Error("RUN_NOT_FOUND");
-  const [chat, bot, triggerMessage, assistantMessage] = await Promise.all([
-    ctx.db.get("chats", run.chatId),
-    ctx.db.get("bots", run.botId),
-    ctx.db.get("messages", run.triggerMessageId),
-    run.assistantMessageId === undefined
-      ? Promise.resolve(null)
-      : ctx.db.get("messages", run.assistantMessageId),
-  ]);
-  if (
-    chat === null ||
-    bot === null ||
-    triggerMessage === null ||
-    assistantMessage === null ||
-    chat.ownerId !== run.ownerId ||
-    bot.ownerId !== run.ownerId ||
-    triggerMessage.ownerId !== run.ownerId ||
-    assistantMessage.ownerId !== run.ownerId ||
-    chat.botId !== run.botId ||
-    triggerMessage.botId !== run.botId ||
-    assistantMessage.botId !== run.botId ||
-    triggerMessage.chatId !== run.chatId ||
-    assistantMessage.chatId !== run.chatId ||
-    triggerMessage.runId !== run._id ||
-    assistantMessage.runId !== run._id
-  ) {
-    throw new Error("RUN_OWNERSHIP_INVALID");
-  }
-  return { run, chat, bot, triggerMessage, assistantMessage };
-}
-
 async function scheduleDrive(
   ctx: MutationCtx,
   runId: Id<"researchRuns">,
   generation: number,
   delayMs: number,
 ) {
-  await ctx.scheduler.runAfter(delayMs, driveRun, { runId, generation });
+  const run = await ctx.db.get("researchRuns", runId);
+  if (run === null) throw new Error("RUN_NOT_FOUND");
+  await scheduleRunDrive(ctx, run, generation, delayMs);
 }
 
 async function promoteQueuedInChat(
@@ -131,32 +104,6 @@ async function promoteQueuedInChat(
   await scheduleDrive(ctx, next._id, 1, 0);
   await scheduleDrive(ctx, next._id, 2, WATCHDOG_MS);
   return next._id;
-}
-
-async function nextRunEventSequence(
-  ctx: MutationCtx,
-  runId: Id<"researchRuns">,
-): Promise<number> {
-  const previous = await ctx.db
-    .query("runEvents")
-    .withIndex("by_run_sequence", (q) => q.eq("runId", runId))
-    .order("desc")
-    .first();
-  return (previous?.sequence ?? 0) + 1;
-}
-
-async function insertRunEvent(
-  ctx: MutationCtx,
-  run: Doc<"researchRuns">,
-  event: Omit<Doc<"runEvents">, "_id" | "_creationTime" | "ownerId" | "runId" | "sequence" | "createdAt">,
-) {
-  await ctx.db.insert("runEvents", {
-    ownerId: run.ownerId,
-    runId: run._id,
-    sequence: await nextRunEventSequence(ctx, run._id),
-    ...event,
-    createdAt: Date.now(),
-  });
 }
 
 async function propagateScheduleOccurrenceTerminal(
@@ -218,97 +165,6 @@ async function propagateScheduleOccurrenceTerminal(
   }
 }
 
-async function insertFunctionCall(
-  ctx: MutationCtx,
-  run: Doc<"researchRuns">,
-  originResponseId: string,
-  call: { callId: string; name: string; argumentsJson: string },
-) {
-  if (!isToolFunctionName(call.name)) {
-    throw new Error("OPENAI_UNKNOWN_TOOL");
-  }
-  const validation = validateToolArguments(call.name, call.argumentsJson);
-  const argumentsJson = validation.ok
-    ? validation.canonicalJson
-    : call.argumentsJson.slice(0, 500_000);
-  const argumentsHash = await sha256Hex(argumentsJson);
-  const existing = await ctx.db
-    .query("toolCalls")
-    .withIndex("by_run_openai_call", (q) =>
-      q.eq("runId", run._id).eq("openaiCallId", call.callId),
-    )
-    .unique();
-  if (existing !== null) {
-    if (
-      existing.functionName !== call.name ||
-      existing.argumentsHash !== argumentsHash ||
-      existing.originResponseId !== originResponseId
-    ) {
-      throw new Error("OPENAI_TOOL_CALL_CONFLICT");
-    }
-    return existing._id;
-  }
-  const externalCall = await ctx.db
-    .query("toolCalls")
-    .withIndex("by_openai_call", (q) => q.eq("openaiCallId", call.callId))
-    .unique();
-  if (externalCall !== null) {
-    throw new Error("OPENAI_TOOL_CALL_OWNERSHIP_CONFLICT");
-  }
-
-  const now = Date.now();
-  const toolCallId = await ctx.db.insert("toolCalls", {
-    ownerId: run.ownerId,
-    runId: run._id,
-    openaiCallId: call.callId,
-    functionName: call.name,
-    argumentsJson,
-    argumentsHash,
-    idempotencyKey: toolKey(run._id, call.callId),
-    status: validation.ok ? "validated" : "failed",
-    resultJson: validation.ok
-      ? undefined
-      : JSON.stringify({
-          ok: false,
-          error: {
-            code: validation.code,
-            message: validation.safeMessage,
-            retryable: false,
-          },
-        }),
-    failureCode: validation.ok ? undefined : validation.code,
-    requestedAt: now,
-    completedAt: validation.ok ? undefined : now,
-    originResponseId,
-  });
-  if (call.name.startsWith("firecrawl_")) {
-    await insertRunEvent(ctx, run, {
-      kind: "firecrawl_query",
-      label: "Querying with Firecrawl",
-      status: validation.ok ? "started" : "failed",
-      safeDetail: validation.ok ? undefined : validation.safeMessage,
-      toolCallId,
-    });
-  } else if (call.name === "publish_report") {
-    await insertRunEvent(ctx, run, {
-      kind: "report_generation",
-      label: "Preparing research report",
-      status: validation.ok ? "started" : "failed",
-      safeDetail: validation.ok ? undefined : validation.safeMessage,
-      toolCallId,
-    });
-  } else if (call.name === "send_research_email") {
-    await insertRunEvent(ctx, run, {
-      kind: "email_send",
-      label: "Preparing research email",
-      status: validation.ok ? "started" : "failed",
-      safeDetail: validation.ok ? undefined : validation.safeMessage,
-      toolCallId,
-    });
-  }
-  return toolCallId;
-}
-
 async function terminalizeRun(
   ctx: MutationCtx,
   run: Doc<"researchRuns">,
@@ -362,7 +218,10 @@ export const promoteNextQueuedRun = internalMutation({
         canceled.updatedAt,
         "run_canceled",
       );
-      if (canceled.openaiResponseId !== undefined) {
+      if (
+        providerForRun(canceled) === "openai" &&
+        canceled.openaiResponseId !== undefined
+      ) {
         const response = await ctx.db
           .query("openaiResponses")
           .withIndex("by_response_id", (q) =>
@@ -397,22 +256,25 @@ export const claimRun = internalMutation({
     ) {
       return { claimed: false, reason: "generation_or_lease" as const };
     }
-    const credential = await ctx.db
-      .query("openaiCredentials")
-      .withIndex("by_owner_status", (q) =>
-        q.eq("ownerId", run.ownerId).eq("status", "active"),
-      )
-      .first();
+    const provider = providerForRun(run);
+    const credential = await getActiveProviderCredential(
+      ctx,
+      run.ownerId,
+      provider,
+    );
     if (
       chat.status !== "active" ||
       bot.status !== "active" ||
       credential === null
     ) {
       await terminalizeRun(ctx, run, "failed", {
-        failureCode: credential === null ? "openai_credential_unavailable" : "run_context_inactive",
+        failureCode:
+          credential === null
+            ? `${provider}_credential_unavailable`
+            : "run_context_inactive",
         failureMessage:
           credential === null
-            ? "A usable OpenAI credential is required to continue this run."
+            ? `A usable ${provider === "zhipu" ? "Zhipu" : "OpenAI"} credential is required to continue this run.`
             : "This chat or bot is no longer active.",
         failedAt: now,
       });
@@ -438,6 +300,9 @@ export const getRunContext = internalMutation({
   handler: async (ctx, args) => {
     const graph = await loadRunGraph(ctx, args.runId);
     const { run, chat, bot, triggerMessage, assistantMessage } = graph;
+    if (providerForRun(run) !== "openai") {
+      throw new Error("INVALID_OPENAI_RUN_PROVIDER");
+    }
     if (
       run.workerGeneration !== args.generation ||
       run.leaseExpiresAt === undefined ||
@@ -473,7 +338,15 @@ export const getRunContext = internalMutation({
       .first();
     if (credential === null) throw new Error("OPENAI_CREDENTIAL_UNAVAILABLE");
 
-    const [globalMemory, botMemory, responses, attachments, priorReports] =
+    const [
+      globalMemory,
+      botMemory,
+      responses,
+      attachments,
+      priorReports,
+      recentMessages,
+      recentRuns,
+    ] =
       await Promise.all([
         run.globalInstructionVersionId === undefined
           ? Promise.resolve(null)
@@ -496,6 +369,26 @@ export const getRunContext = internalMutation({
               .order("desc")
               .collect()
           : Promise.resolve([]),
+        run.triggerKind === "schedule"
+          ? Promise.resolve([])
+          : ctx.db
+              .query("messages")
+              .withIndex("by_chat_created", (q) =>
+                q
+                  .eq("chatId", run.chatId)
+                  .lte("createdAt", triggerMessage.createdAt),
+              )
+              .order("desc")
+              .take(50),
+        run.triggerKind === "schedule"
+          ? Promise.resolve([])
+          : ctx.db
+              .query("researchRuns")
+              .withIndex("by_chat_created", (q) =>
+                q.eq("chatId", run.chatId).lte("createdAt", run.createdAt),
+              )
+              .order("desc")
+              .take(50),
       ]);
     if (
       (run.globalInstructionVersionId !== undefined && globalMemory === null) ||
@@ -531,6 +424,15 @@ export const getRunContext = internalMutation({
     }
 
     const priorReport = priorReports.find((report) => report.runId !== run._id);
+    const previousRun = recentRuns.find(
+      (candidate) => candidate._creationTime < run._creationTime,
+    );
+    const seedLocalHistory =
+      previousRun !== undefined &&
+      (previousRun.status !== "completed" ||
+        providerForRun(previousRun) !== "openai" ||
+        previousRun.openaiConversationId === undefined ||
+        previousRun.openaiConversationId !== chat.openaiConversationId);
     return {
       run,
       chat,
@@ -554,6 +456,23 @@ export const getRunContext = internalMutation({
         priorReport === undefined
           ? undefined
           : `${priorReport.title}\n${priorReport.summary}`.slice(0, 8_000),
+      seedLocalHistory,
+      localHistory: seedLocalHistory
+        ? recentMessages
+            .filter(
+              (message) =>
+                message.ownerId === run.ownerId &&
+                message.botId === run.botId &&
+                message._creationTime < triggerMessage._creationTime &&
+                message.content.trim().length > 0 &&
+                (message.status === "accepted" || message.status === "complete"),
+            )
+            .reverse()
+            .map((message) => ({
+              role: message.role,
+              content: message.content,
+            }))
+        : [],
     };
   },
 });
@@ -562,6 +481,9 @@ export const getAbortContext = internalMutation({
   args: { runId: v.id("researchRuns") },
   handler: async (ctx, args) => {
     const { run } = await loadRunGraph(ctx, args.runId);
+    if (providerForRun(run) !== "openai") {
+      return { responseId: undefined };
+    }
     const credential = await ctx.db
       .query("openaiCredentials")
       .withIndex("by_owner_status", (q) =>
@@ -586,6 +508,7 @@ export const setRunConversation = internalMutation({
     runId: v.id("researchRuns"),
     generation: v.number(),
     conversationId: v.string(),
+    replaceChatConversation: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { run, chat } = await loadRunGraph(ctx, args.runId);
@@ -601,7 +524,8 @@ export const setRunConversation = internalMutation({
     if (
       run.triggerKind !== "schedule" &&
       chat.openaiConversationId !== undefined &&
-      chat.openaiConversationId !== args.conversationId
+      chat.openaiConversationId !== args.conversationId &&
+      !args.replaceChatConversation
     ) {
       throw new Error("OPENAI_CONVERSATION_CONFLICT");
     }
@@ -610,7 +534,10 @@ export const setRunConversation = internalMutation({
       openaiConversationId: args.conversationId,
       updatedAt: now,
     });
-    if (run.triggerKind !== "schedule" && chat.openaiConversationId === undefined) {
+    if (
+      run.triggerKind !== "schedule" &&
+      (chat.openaiConversationId === undefined || args.replaceChatConversation)
+    ) {
       await ctx.db.patch("chats", chat._id, {
         openaiConversationId: args.conversationId,
         updatedAt: now,
