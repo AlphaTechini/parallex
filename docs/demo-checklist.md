@@ -1,6 +1,6 @@
 # Demo and acceptance checklist
 
-This checklist maps each product acceptance family to either an automated command or a manual, provider-backed check. It is intended for use against a fully configured deployment: Convex provisioned, all environment variables set, an OpenAI API key saved in Settings, and Firecrawl plus AgentMail keys active. No check may be considered passing until the backing provider or database state confirms it, not just the UI text.
+This checklist maps each product acceptance family to either an automated command or a manual, provider-backed check. It is intended for use against a fully configured deployment: Convex provisioned, all environment variables set, at least one OpenAI or Zhipu key saved in Settings, and Firecrawl plus AgentMail keys active. No check may be considered passing until the backing provider or database state confirms it, not just the UI text.
 
 Automated commands available in this repository:
 
@@ -50,13 +50,14 @@ Acceptance family: bot input rules, mission semantics, avatar rules, the three-i
 
 ## 4. Model key setup
 
-Acceptance family: the user-supplied OpenAI key gates research and is never exposed.
+Acceptance family: user-supplied OpenAI and Zhipu keys gate only their own models and are never exposed.
 
 | Check | Method |
 | --- | --- |
 | Research is blocked until a key exists. | Manual: on an account without a key, confirm the composer shows the settings notice instead of the input, and that direct submission is rejected server-side. |
-| Only a non-secret hint is visible after saving. | Manual: save a key, confirm Settings shows the configured state and the short display hint, and that no query response ever contains the full key (inspect the `openaiCredentials` row for ciphertext only). |
-| Replacing and deleting the key behave. | Manual: replace the key and confirm the hint updates; delete it and confirm new runs are refused while existing chats, messages, and reports remain accessible. |
+| Only a non-secret hint is visible after saving. | Manual: save each provider key, confirm Settings shows the configured state and short display hint, and that no query response contains the full key. Inspect `openaiCredentials` and `zhipuCredentials` for ciphertext only. |
+| Replacing and deleting provider keys behave. | Manual: replace each key and confirm its hint updates; delete one and confirm only that provider's models disappear while existing chats, messages, and reports remain accessible. |
+| Provider-specific model policy is enforced. | Manual: with only a Zhipu key configured, confirm only GLM-5.3 Flash and GLM-5.3 appear and expose low, high, and max effort. With both keys configured, confirm all six models appear. |
 | Encryption is active. | Automated plus inspection: `pnpm typecheck` covers configuration; in the Convex dashboard confirm the stored credential row contains ciphertext and an initialization vector, never plaintext. |
 
 ## 5. Research persistence
@@ -71,6 +72,8 @@ Acceptance family: save before work, browser independence, resumable streaming, 
 | Streaming resumes from the saved cursor. | Manual plus inspection: for a run that survives a worker restart (kill `pnpm convex:dev` mid-run, restart it), confirm the run row keeps its last provider sequence number and the worker continues from that cursor without duplicating visible events. |
 | No single action exceeds the execution limit. | Automated plus inspection: `pnpm typecheck` and `pnpm lint` pass; during a long run confirm in the Convex dashboard logs that worker slices stay short and requeue rather than one long-lived action. |
 | Duplicate submission protection. | Manual: resubmit the same prompt after a network hiccup (or replay the mutation with the same submission identifier) and confirm the original message and run identifiers are returned instead of a second run. |
+| Provider switching preserves context. | Manual: complete an OpenAI turn, a Zhipu turn, then another OpenAI turn that refers to the GLM answer. Confirm the final run understands the intervening exchange and that a fresh OpenAI conversation mapping is stored. |
+| Zhipu turns survive browser closure. | Manual plus inspection: run GLM research with at least one Firecrawl tool, close the browser, then confirm `zhipuTurns` and `toolCalls` advance to completion and the final answer appears after reopening. |
 
 ## 6. Tool visibility
 
@@ -140,7 +143,7 @@ Acceptance family: ownership is verified everywhere; identifiers alone grant not
 | Check | Method |
 | --- | --- |
 | Every public operation verifies the authenticated owner. | Manual plus inspection: in a second account, attempt to open the first account's chat, bot, run, schedule, and report by identifier (URL manipulation). Each must render not-found rather than data. Spot-check the require-owned helpers in `convex/lib/authHelpers.ts` coverage across public functions. |
-| Provider identifiers grant nothing. | Manual: with account B signed in, present account A's OpenAI conversation identifier or AgentMail thread identifier through any public path and confirm no data is returned. |
+| Provider identifiers grant nothing. | Manual: with account B signed in, present account A's OpenAI conversation identifier, Zhipu completion identifier, or AgentMail thread identifier through any public path and confirm no data is returned. |
 | Webhook and worker entry points map tenants server-side. | Manual plus inspection: confirm `webhookEvents` and occurrence rows carry owner references resolved from provider identifiers, not from payload-supplied owner data. |
 | Data remains isolated end to end. | Manual: browse both accounts' dashboards, chats, schedules, and reports and confirm zero cross-account visibility. |
 
@@ -166,7 +169,7 @@ Acceptance family: partial outcomes are represented honestly and completed work 
 | Report stored, PDF rendering failed. | Manual plus inspection: force a PDF failure (for example by temporarily breaking font retrieval in the renderer) and confirm the report row becomes `partial`, the Markdown artifact downloads, and the tool output states the warning. Restore the renderer afterwards. |
 | One failed source among sufficient successes. | Manual: run research where one target page is blocked and confirm the failed source is marked `failed` or `rejected` in `researchSources` while the answer still cites the successful ones. |
 | Schedule saved but next occurrence delayed. | Manual plus inspection: after a reschedule or pause, confirm the schedule row and occurrence states reflect reality rather than a silently dropped occurrence. |
-| Failed runs stay readable. | Manual: force a run failure (for example an invalid OpenAI key mid-deployment) and confirm the failure category renders, prior messages and reports remain accessible, and retry does not repeat completed side effects. |
+| Failed runs stay readable. | Manual: force a run failure with an invalid OpenAI or Zhipu key and confirm the failure category renders, prior messages and reports remain accessible, and retry does not repeat completed side effects. |
 
 ## 14. Firecrawl routing checks
 

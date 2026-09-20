@@ -2,9 +2,9 @@
 
 This route group contains account-level settings.
 
-To find the settings page mounting the OpenAI key form and global memory form visit [page.tsx](file:///C:/Hackathons/Parallex/src/app/settings/page.tsx).
+To find the settings page mounting the OpenAI key form, Zhipu key form, and global memory form visit [page.tsx](file:///C:/Hackathons/Parallex/src/app/settings/page.tsx).
 
-The encrypted key storage connection can be found in [OpenAIKeyForm.tsx](file:///C:/Hackathons/Parallex/src/components/settings/OpenAIKeyForm.tsx) and in [credentials.ts](file:///C:/Hackathons/Parallex/convex/credentials.ts). The global memory storage connection can be found in [GlobalMemoryForm.tsx](file:///C:/Hackathons/Parallex/src/components/settings/GlobalMemoryForm.tsx) and in [userProfiles.ts](file:///C:/Hackathons/Parallex/convex/userProfiles.ts).
+The encrypted key storage connection can be found in [OpenAIKeyForm.tsx](file:///C:/Hackathons/Parallex/src/components/settings/OpenAIKeyForm.tsx), [ZhipuKeyForm.tsx](file:///C:/Hackathons/Parallex/src/components/settings/ZhipuKeyForm.tsx), and [credentials.ts](file:///C:/Hackathons/Parallex/convex/credentials.ts). The global memory storage connection can be found in [GlobalMemoryForm.tsx](file:///C:/Hackathons/Parallex/src/components/settings/GlobalMemoryForm.tsx) and in [userProfiles.ts](file:///C:/Hackathons/Parallex/convex/userProfiles.ts).
 
 ## Architectural decisions
 

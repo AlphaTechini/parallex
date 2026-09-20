@@ -8,7 +8,7 @@ Run the suite from the repository root:
 pnpm test
 ```
 
-The committed suites cover ownership, idempotency, lifecycle state, instruction versioning, avatar and upload rules, Firecrawl routing, and integration-review regressions. Provider behavior that requires live OpenAI, Firecrawl, AgentMail, or Convex File Storage metadata remains covered by the manual checks in [docs/demo-checklist.md](../docs/demo-checklist.md).
+The committed suites cover ownership, idempotency, lifecycle state, instruction versioning, avatar and upload rules, Firecrawl routing, and integration-review regressions. Provider behavior that requires live OpenAI, Zhipu, Firecrawl, AgentMail, or Convex File Storage metadata remains covered by the manual checks in [docs/demo-checklist.md](../docs/demo-checklist.md).
 
 To find the provider-backed product acceptance checks visit [docs/demo-checklist.md](../docs/demo-checklist.md). The schema and function modules under test can be found in [convex/schema.ts](../convex/schema.ts) and the sibling Convex function files.
 

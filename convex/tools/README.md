@@ -8,7 +8,7 @@ To find tool dispatch and handler registration visit [registry.ts](file:///C:/Ha
 
 To find the shared executor contract visit [types.ts](file:///C:/Hackathons/Parallex/convex/tools/types.ts).
 
-The OpenAI run connection can be found in [toolExecutor.ts](file:///C:/Hackathons/Parallex/convex/workers/toolExecutor.ts) and [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts).
+The model run connection can be found in [toolExecutor.ts](file:///C:/Hackathons/Parallex/convex/workers/toolExecutor.ts), [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts), and [zhipuRunWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/zhipuRunWorker.ts).
 
 ## Architectural decisions
 

@@ -25,5 +25,5 @@ The message persistence connection can be found in [Composer.tsx](file:///C:/Hac
 - Statuses come from database records. The receipt checkmark means the server persisted the message; activity badges reflect tool and email rows, so the UI cannot show success before the backend confirms it.
 - Assistant Markdown is rendered through a sanitizing renderer with an http, https, and mailto URL allowlist, independent of server-side report sanitization.
 - Attachment uploads use the same claim-token flow as avatars and reject unsupported types and sizes before submission, so rejected files never reach the research pipeline.
-- The composer queues instead of blocking during an active run, matching the one-active-run backend contract, and says so in the interface.
+- The composer shows only models whose provider credential is active, applies provider-specific reasoning levels, and queues instead of blocking during an active run, matching the backend contract.
 - The activity feed is collapsible, expanded by default while a run is live and collapsed after completion, which keeps finished answers prominent without hiding the audit trail.

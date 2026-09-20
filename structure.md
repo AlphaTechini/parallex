@@ -42,14 +42,14 @@ Parallex/
 - Authentication boundary: [convex/auth.ts](convex/auth.ts), [convex/auth.config.ts](convex/auth.config.ts), and HTTP route registration in [convex/http.ts](convex/http.ts).
 - Bot lifecycle and inbox provisioning state: [convex/bots.ts](convex/bots.ts), [convex/inboxes.ts](convex/inboxes.ts), [convex/workers/inboxProvisioner.ts](convex/workers/inboxProvisioner.ts).
 - Prompt submission, receipt, duplicate protection, and queueing: [convex/messages.ts](convex/messages.ts).
-- Run state machine: lease, checkpoints, tool barriers, and finalization in [convex/workers/runMutations.ts](convex/workers/runMutations.ts); provider streaming and continuation in [convex/workers/runWorker.ts](convex/workers/runWorker.ts); event normalization in [convex/workers/streamConsumer.ts](convex/workers/streamConsumer.ts); dispatch in [convex/workers/toolExecutor.ts](convex/workers/toolExecutor.ts).
+- Run state machine: lease, checkpoints, tool barriers, and finalization in [convex/workers/runMutations.ts](convex/workers/runMutations.ts); OpenAI streaming and continuation in [convex/workers/runWorker.ts](convex/workers/runWorker.ts); Zhipu Chat Completions turns in [convex/workers/zhipuRunWorker.ts](convex/workers/zhipuRunWorker.ts) and [convex/workers/zhipuRunMutations.ts](convex/workers/zhipuRunMutations.ts); event normalization in [convex/workers/streamConsumer.ts](convex/workers/streamConsumer.ts); dispatch in [convex/workers/toolExecutor.ts](convex/workers/toolExecutor.ts).
 - Tool surface: schemas and validation in [convex/tools/definitions.ts](convex/tools/definitions.ts), dispatch in [convex/tools/registry.ts](convex/tools/registry.ts), contracts in [convex/tools/types.ts](convex/tools/types.ts).
 - Firecrawl evidence: source persistence in [convex/sources.ts](convex/sources.ts), durable provider jobs in [convex/firecrawlJobs.ts](convex/firecrawlJobs.ts), polling in [convex/firecrawlJobPoller.ts](convex/firecrawlJobPoller.ts), URL and SSRF guards in [convex/lib/firecrawlClient.ts](convex/lib/firecrawlClient.ts).
 - Reports: storage-first publication, Markdown sanitization, and owner-scoped downloads in [convex/reports.ts](convex/reports.ts); PDF rendering in [reportRenderer.ts](reportRenderer.ts).
 - Email: outbound graph and delivery status in [convex/emails.ts](convex/emails.ts), provider calls in [convex/workers/emailSender.ts](convex/workers/emailSender.ts), webhook verification and routing in [convex/webhooks.ts](convex/webhooks.ts), inbound reply mapping in [convex/inboundEmailProcessor.ts](convex/inboundEmailProcessor.ts).
 - Schedules: lifecycle controls in [convex/schedules.ts](convex/schedules.ts), occurrence claiming and next-occurrence scheduling in [convex/scheduleOccurrenceWorker.ts](convex/scheduleOccurrenceWorker.ts), recurrence math in [convex/lib/recurrence.ts](convex/lib/recurrence.ts).
 - Uploads: owner-bound claim tokens and validation in [convex/attachments.ts](convex/attachments.ts) and [convex/bots.ts](convex/bots.ts).
-- Credentials: encrypted OpenAI key storage in [convex/credentials.ts](convex/credentials.ts) and [convex/lib/crypto.ts](convex/lib/crypto.ts).
+- Credentials: encrypted OpenAI and Zhipu key storage in [convex/credentials.ts](convex/credentials.ts) and [convex/lib/crypto.ts](convex/lib/crypto.ts).
 - Model policy: catalog and effort validation in [convex/lib/models.ts](convex/lib/models.ts), research protocol composition in [convex/prompts/researchProtocol.ts](convex/prompts/researchProtocol.ts).
 - Route protection: [src/proxy.ts](src/proxy.ts) redirects unauthenticated navigation; Convex functions enforce access independently.
 - Chat experience: composition in [src/components/chat/ChatExperience.tsx](src/components/chat/ChatExperience.tsx), submission in [src/components/chat/Composer.tsx](src/components/chat/Composer.tsx), activity and artifacts in [src/components/chat/ActivityFeed.tsx](src/components/chat/ActivityFeed.tsx) and [src/components/chat/RunArtifacts.tsx](src/components/chat/RunArtifacts.tsx).
@@ -99,6 +99,8 @@ Provider identifiers (OpenAI conversation and response identifiers, Firecrawl jo
 ### Response lineage
 
 Runs record the OpenAI response identifier, parent response identifier for tool continuations, conversation identifier, and the last processed stream sequence number. Responses are stored as rows (`openaiResponses`) so a continuation can be traced to the response that requested a tool call. The cost is extra bookkeeping per turn; the benefit is auditable lineage and safe resumption after interruptions.
+
+Zhipu runs store application-owned turn intents and completed Chat Completions in `zhipuTurns`. Tool calls are grouped under a stable local turn origin, so async Firecrawl completion can re-drive the correct provider worker without relying on provider-side conversation or retrieval APIs.
 
 ### Storage-first reports
 

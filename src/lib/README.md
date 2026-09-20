@@ -15,5 +15,5 @@ The backend model validation connection can be found in [models.ts](file:///C:/H
 ## Architectural decisions
 
 - Error copy is centralized and maps a closed set of server codes to actionable text; anything unrecognized collapses to a generic message so raw provider or internal errors never reach the screen.
-- The client model catalog mirrors the server catalog for presentation, while the server copy remains the enforcement point. Display can never widen what the backend accepts.
+- The client model catalog mirrors provider, model, and reasoning policy from the server catalog for presentation, while the server copy remains the enforcement point. Display can never widen what the backend accepts.
 - Run status helpers encapsulate the notion of an active run in one place so the composer, banner, and activity feed agree on when a run is live.

@@ -1,6 +1,6 @@
 # Convex backend
 
-This directory contains the Convex Auth wiring, application schema, resumable research workers, Firecrawl provider integration, AgentMail delivery and webhook handling, report persistence, and schedule execution.
+This directory contains the Convex Auth wiring, application schema, OpenAI and Zhipu research workers, Firecrawl provider integration, AgentMail delivery and webhook handling, report persistence, and schedule execution.
 
 The authentication boundary can be found in [auth.ts](file:///C:/Hackathons/Parallex/convex/auth.ts). The authentication provider configuration can be found in [auth.config.ts](file:///C:/Hackathons/Parallex/convex/auth.config.ts). HTTP route registration can be found in [http.ts](file:///C:/Hackathons/Parallex/convex/http.ts). The schema boundary can be found in [schema.ts](file:///C:/Hackathons/Parallex/convex/schema.ts). Convex compiler settings can be found in [tsconfig.json](file:///C:/Hackathons/Parallex/convex/tsconfig.json).
 
@@ -18,7 +18,7 @@ To find bot creation, inbox provisioning state, and the email bot limit visit [b
 
 To find owner-bound upload validation for avatars and research attachments visit [attachments.ts](file:///C:/Hackathons/Parallex/convex/attachments.ts) and the upload mutations in [bots.ts](file:///C:/Hackathons/Parallex/convex/bots.ts).
 
-To find encrypted OpenAI credential storage visit [credentials.ts](file:///C:/Hackathons/Parallex/convex/credentials.ts).
+To find encrypted OpenAI and Zhipu credential storage visit [credentials.ts](file:///C:/Hackathons/Parallex/convex/credentials.ts).
 
 The Convex database and authentication connection can be found in [auth.ts](file:///C:/Hackathons/Parallex/convex/auth.ts), [auth.config.ts](file:///C:/Hackathons/Parallex/convex/auth.config.ts), and [http.ts](file:///C:/Hackathons/Parallex/convex/http.ts). The AgentMail webhook connection can be found in [webhooks.ts](file:///C:/Hackathons/Parallex/convex/webhooks.ts) and [http.ts](file:///C:/Hackathons/Parallex/convex/http.ts).
 
@@ -28,9 +28,9 @@ Subsystem folders: [lib/](file:///C:/Hackathons/Parallex/convex/lib/README.md), 
 
 - Convex is the entire backend: database, realtime layer, auth, actions, scheduler, and file storage. No second server exists, so ownership checks live in one place and the realtime UI subscribes to the same state the workers write. The tradeoff is tight coupling to Convex limits (action duration, bandwidth, storage).
 - Every application table carries `ownerId` with owner-prefixed indexes, and public functions derive the user from Convex Auth rather than trusting arguments. This costs a predictable amount of repetitive checking code but makes tenant isolation structural instead of per-feature.
-- Provider identifiers (OpenAI conversation and response identifiers, Firecrawl job identifiers, AgentMail inbox, thread, and message identifiers) are stored as backend metadata with internal ownership context. They speed up provider operations but never authorize anything on their own.
+- Provider identifiers (OpenAI conversation and response identifiers, Zhipu completion identifiers, Firecrawl job identifiers, AgentMail inbox, thread, and message identifiers) are stored as backend metadata with internal ownership context. They speed up provider operations but never authorize anything on their own.
 - One active run per chat is enforced through `chats.activeRunId`, with queued runs promoted by a follow-up mutation. This serializes provider spend and keeps the activity feed unambiguous at the cost of within-chat throughput.
-- Long work is split across short Node actions with lease and generation counters plus a delayed watchdog, because a single action cannot outlast the Convex execution limit. The run can therefore survive interruptions and browser closure, but the state machine has more explicit checkpoints than a naive implementation.
+- Long work is split across short Node actions with lease and generation counters plus a delayed watchdog, because a single action cannot outlast the Convex execution limit. OpenAI checkpoints stream cursors, while Zhipu checkpoints complete Chat Completions turns and tool barriers. The run can therefore survive interruptions and browser closure, but the state machine has more explicit checkpoints than a naive implementation.
 - Side effects (tool execution, report storage, email send, schedule creation, inbox creation) are idempotent through derived keys, so worker retries never duplicate external operations.
 - Email sending, inbox provisioning, and provider calls live in `"use node"` actions because their SDKs need the Node runtime; state transitions stay in mutations so each provider call is preceded and followed by transactional bookkeeping.
 

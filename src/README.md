@@ -1,6 +1,6 @@
 # Next.js application
 
-This directory contains the Next.js 16 App Router frontend: route protection, pages, UI components, and client-safe helpers. The frontend is a realtime viewer and submitter of Convex state. It never talks to OpenAI, Firecrawl, or AgentMail directly, never holds provider credentials, and never decides authorization.
+This directory contains the Next.js 16 App Router frontend: route protection, pages, UI components, and client-safe helpers. The frontend is a realtime viewer and submitter of Convex state. It never talks to OpenAI, Zhipu, Firecrawl, or AgentMail directly, never holds provider credentials, and never decides authorization.
 
 To find route protection for page navigation visit [proxy.ts](file:///C:/Hackathons/Parallex/src/proxy.ts).
 
