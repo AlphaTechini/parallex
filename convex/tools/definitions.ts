@@ -80,6 +80,8 @@ export const TOOL_FUNCTION_NAMES = [
   "publish_report",
   "send_research_email",
   "send_direct_message",
+  "prepare_outreach_draft",
+  "list_research_schedules",
   "create_research_schedule",
 ] as const;
 
@@ -301,6 +303,23 @@ const TOOL_DEFINITIONS: readonly FunctionTool[] = [
       subject: stringSchema({ minLength: 1, maxLength: 300 }),
       body: stringSchema({ minLength: 1, maxLength: 10000 }),
     }),
+  ),
+  tool(
+    "prepare_outreach_draft",
+    "Persist a complete external outreach email for the user to inspect and approve. This function never sends. Use only after the user has selected the recipient from researched options and supplied or accepted negotiation constraints.",
+    objectSchema({
+      recipientEmail: stringSchema({ minLength: 3, maxLength: 320 }),
+      merchantName: stringSchema({ minLength: 1, maxLength: 200 }),
+      productLabel: stringSchema({ minLength: 1, maxLength: 300 }),
+      subject: stringSchema({ minLength: 1, maxLength: 300 }),
+      body: stringSchema({ minLength: 1, maxLength: 20000 }),
+      constraints: stringSchema({ minLength: 1, maxLength: 5000 }),
+    }),
+  ),
+  tool(
+    "list_research_schedules",
+    "List this bot's existing active, paused, and completed research schedules. Always use this before creating a template-defined schedule so equivalent automation is not duplicated.",
+    objectSchema({}),
   ),
   tool(
     "create_research_schedule",

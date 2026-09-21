@@ -8,6 +8,7 @@ This file maps the Parallex repository: the folder tree, where each area of logi
 Parallex/
 |-- README.md               Product overview, setup, security model
 |-- structure.md            This file
+|-- tasks.md                Templates and shared-email implementation ledger
 |-- package.json            Scripts and pinned dependencies (pnpm)
 |-- pnpm-lock.yaml          Authoritative lockfile
 |-- pnpm-workspace.yaml     pnpm build approvals and release-age exceptions
@@ -30,7 +31,9 @@ Parallex/
 |   |-- _generated/        Convex codegen output (generated, do not edit)
 |-- src/                    Next.js application
 |   |-- app/               App Router pages and providers
+|   |   |-- templates/    Curated template catalog route
 |   |-- components/        UI components by category
+|   |   |-- templates/    Catalog, overview, editor, and deployment UI
 |   |-- lib/               Client-safe helpers (models, errors, formatting, run status)
 |-- docs/                   Documentation: index and acceptance checklist
 |-- tests/                  Test suite location (Vitest runner configured)
@@ -45,12 +48,14 @@ Parallex/
 - Static-site hosting: component registration in [convex/convex.config.ts](convex/convex.config.ts), Next asset resolution in [convex/staticSite.ts](convex/staticSite.ts), and the static upload script in [package.json](package.json).
 - Target-aware static export: [scripts/build-static.mjs](scripts/build-static.mjs) bridges the hosting CLI's resolved deployment URL to Next's `NEXT_PUBLIC_CONVEX_URL` before the frontend build.
 - Bot lifecycle and inbox provisioning state: [convex/bots.ts](convex/bots.ts), [convex/inboxes.ts](convex/inboxes.ts), [convex/workers/inboxProvisioner.ts](convex/workers/inboxProvisioner.ts).
+- Template catalog and deployment: [src/components/templates/templateCatalog.ts](src/components/templates/templateCatalog.ts), [src/components/templates/TemplateDashboard.tsx](src/components/templates/TemplateDashboard.tsx), and [src/app/templates/page.tsx](src/app/templates/page.tsx).
 - Prompt submission, receipt, duplicate protection, and queueing: [convex/messages.ts](convex/messages.ts).
 - Run state machine: lease, checkpoints, tool barriers, and finalization in [convex/workers/runMutations.ts](convex/workers/runMutations.ts); OpenAI streaming and continuation in [convex/workers/runWorker.ts](convex/workers/runWorker.ts); Zhipu Chat Completions turns in [convex/workers/zhipuRunWorker.ts](convex/workers/zhipuRunWorker.ts) and [convex/workers/zhipuRunMutations.ts](convex/workers/zhipuRunMutations.ts); event normalization in [convex/workers/streamConsumer.ts](convex/workers/streamConsumer.ts); dispatch in [convex/workers/toolExecutor.ts](convex/workers/toolExecutor.ts).
 - Tool surface: schemas and validation in [convex/tools/definitions.ts](convex/tools/definitions.ts), dispatch in [convex/tools/registry.ts](convex/tools/registry.ts), contracts in [convex/tools/types.ts](convex/tools/types.ts).
 - Firecrawl evidence: source persistence in [convex/sources.ts](convex/sources.ts), durable provider jobs in [convex/firecrawlJobs.ts](convex/firecrawlJobs.ts), polling in [convex/firecrawlJobPoller.ts](convex/firecrawlJobPoller.ts), URL and SSRF guards in [convex/lib/firecrawlClient.ts](convex/lib/firecrawlClient.ts).
 - Reports: storage-first publication, Markdown sanitization, and owner-scoped downloads in [convex/reports.ts](convex/reports.ts); PDF rendering in [reportRenderer.ts](reportRenderer.ts).
 - Email: outbound graph and delivery status in [convex/emails.ts](convex/emails.ts), provider calls in [convex/workers/emailSender.ts](convex/workers/emailSender.ts), webhook verification and routing in [convex/webhooks.ts](convex/webhooks.ts), inbound reply mapping in [convex/inboundEmailProcessor.ts](convex/inboundEmailProcessor.ts).
+- Approved external outreach: draft authorization and thread persistence in [convex/outreach.ts](convex/outreach.ts), provider sending in [convex/workers/outreachSender.ts](convex/workers/outreachSender.ts), and approval UI in [src/components/chat/OutreachDrafts.tsx](src/components/chat/OutreachDrafts.tsx).
 - Schedules: lifecycle controls in [convex/schedules.ts](convex/schedules.ts), occurrence claiming and next-occurrence scheduling in [convex/scheduleOccurrenceWorker.ts](convex/scheduleOccurrenceWorker.ts), recurrence math in [convex/lib/recurrence.ts](convex/lib/recurrence.ts).
 - Uploads: owner-bound claim tokens and validation in [convex/attachments.ts](convex/attachments.ts) and [convex/bots.ts](convex/bots.ts).
 - Credentials: encrypted OpenAI and Zhipu key storage in [convex/credentials.ts](convex/credentials.ts) and [convex/lib/crypto.ts](convex/lib/crypto.ts).
@@ -80,6 +85,7 @@ Parallex/
 | `src/app/schedules/` | [src/app/schedules/README.md](src/app/schedules/README.md) |
 | `src/app/settings/` | [src/app/settings/README.md](src/app/settings/README.md) |
 | `src/app/signin/` | [src/app/signin/README.md](src/app/signin/README.md) |
+| `src/app/templates/` | [src/app/templates/README.md](src/app/templates/README.md) |
 | `src/components/` | [src/components/README.md](src/components/README.md) |
 | `src/components/auth/` | [src/components/auth/README.md](src/components/auth/README.md) |
 | `src/components/bots/` | [src/components/bots/README.md](src/components/bots/README.md) |
@@ -87,6 +93,7 @@ Parallex/
 | `src/components/layout/` | [src/components/layout/README.md](src/components/layout/README.md) |
 | `src/components/schedules/` | [src/components/schedules/README.md](src/components/schedules/README.md) |
 | `src/components/settings/` | [src/components/settings/README.md](src/components/settings/README.md) |
+| `src/components/templates/` | [src/components/templates/README.md](src/components/templates/README.md) |
 | `src/components/ui/` | [src/components/ui/README.md](src/components/ui/README.md) |
 | `src/lib/` | [src/lib/README.md](src/lib/README.md) |
 | `scripts/` | [scripts/README.md](scripts/README.md) |

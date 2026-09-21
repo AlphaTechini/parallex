@@ -5,6 +5,7 @@ import {
   mutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import { emailSendKey, sha256Hex } from "./lib/normalize";
 import { getAuthenticatedUserId, requireOwnedRun } from "./lib/authHelpers";
@@ -20,6 +21,20 @@ type ActiveInbox = Omit<Doc<"agentMailInboxes">, "providerInboxId" | "confirmedA
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "canceled"]);
 type DeliveryStatus = "accepted" | "delivered" | "failed";
+
+async function resolveBotInbox(
+  ctx: MutationCtx | QueryCtx,
+  bot: Doc<"bots">,
+): Promise<Doc<"agentMailInboxes"> | null> {
+  const inbox =
+    bot.emailInboxId === undefined
+      ? await ctx.db
+          .query("agentMailInboxes")
+          .withIndex("by_bot", (q) => q.eq("botId", bot._id))
+          .unique()
+      : await ctx.db.get("agentMailInboxes", bot.emailInboxId);
+  return inbox?.ownerId === bot.ownerId ? inbox : null;
+}
 
 export function canApplyDeliveryStatus(
   current: Doc<"emailMessages">["status"],
@@ -121,9 +136,7 @@ async function loadEmailGraph(
       }
     }
   }
-  const inbox = bot === null
-    ? null
-    : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
+  const inbox = bot === null ? null : await resolveBotInbox(ctx, bot);
   if (
     run === null ||
     chat === null ||
@@ -137,7 +150,7 @@ async function loadEmailGraph(
     run.botId !== bot._id ||
     run.chatId !== chat._id ||
     chat.botId !== bot._id ||
-    inbox.botId !== bot._id ||
+    (bot.emailInboxId === undefined && inbox.botId !== bot._id) ||
     chat.status !== "active" ||
     bot.status !== "active" ||
     inbox.status !== "active" ||
@@ -319,9 +332,7 @@ export const markOutboundAccepted = internalMutation({
     const message = await ctx.db.get("emailMessages", args.emailMessageId);
     if (message === null || message.direction !== "outbound") throw new Error("EMAIL_NOT_FOUND");
     const bot = await ctx.db.get("bots", message.botId);
-    const inbox = bot === null
-      ? null
-      : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
+    const inbox = bot === null ? null : await resolveBotInbox(ctx, bot);
     const run = message.runId === undefined ? null : await ctx.db.get("researchRuns", message.runId);
     if (
       bot === null ||
@@ -413,9 +424,7 @@ export const getOutboundSendContext = internalQuery({
     const message = await ctx.db.get("emailMessages", args.emailMessageId);
     if (message === null || message.direction !== "outbound") throw new Error("EMAIL_NOT_FOUND");
     const bot = await ctx.db.get("bots", message.botId);
-    const inbox = bot === null
-      ? null
-      : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
+    const inbox = bot === null ? null : await resolveBotInbox(ctx, bot);
     const report = message.reportId === undefined ? null : await ctx.db.get("reports", message.reportId);
     const run = message.runId === undefined ? null : await ctx.db.get("researchRuns", message.runId);
     if (
@@ -495,7 +504,10 @@ export const getEmailForRun = query({
       .order("desc")
       .collect();
     const message = messages.find(
-      (candidate) => candidate.ownerId === ownerId && candidate.direction === "outbound",
+      (candidate) =>
+        candidate.ownerId === ownerId &&
+        candidate.direction === "outbound" &&
+        !candidate.idempotencyKey.startsWith("email-outreach:"),
     );
     if (message === undefined) return null;
     return {
@@ -523,9 +535,7 @@ export const updateDeliveryStatus = internalMutation({
       .unique();
     if (message === null || message.direction !== "outbound") return { ok: true, updated: false };
     const bot = await ctx.db.get("bots", message.botId);
-    const inbox = bot === null
-      ? null
-      : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
+    const inbox = bot === null ? null : await resolveBotInbox(ctx, bot);
     if (bot === null || inbox === null || bot.ownerId !== message.ownerId || inbox.ownerId !== message.ownerId) {
       return { ok: true, updated: false };
     }
@@ -586,9 +596,7 @@ export const getEmailReplyContext = internalQuery({
     if (inbound === null || inbound.direction !== "inbound" || inbound.threadId === undefined) return null;
     const thread = await ctx.db.get("emailThreads", inbound.threadId);
     const bot = await ctx.db.get("bots", run.botId);
-    const inbox = bot === null
-      ? null
-      : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
+    const inbox = bot === null ? null : await resolveBotInbox(ctx, bot);
     if (
       thread === null ||
       bot === null ||
@@ -639,9 +647,7 @@ export const beginEmailReply = internalMutation({
     }
     const thread = await ctx.db.get("emailThreads", inbound.threadId);
     const bot = await ctx.db.get("bots", run.botId);
-    const inbox = bot === null
-      ? null
-      : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
+    const inbox = bot === null ? null : await resolveBotInbox(ctx, bot);
     if (
       thread === null ||
       bot === null ||

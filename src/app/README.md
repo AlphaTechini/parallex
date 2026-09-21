@@ -8,7 +8,7 @@ To find the authenticated entry redirect visit [page.tsx](file:///C:/Hackathons/
 
 To find global styles and the Tailwind entry visit [globals.css](file:///C:/Hackathons/Parallex/src/app/globals.css).
 
-Route group folders: [bots/](file:///C:/Hackathons/Parallex/src/app/bots/README.md), [chats/](file:///C:/Hackathons/Parallex/src/app/chats/README.md), [dashboard/](file:///C:/Hackathons/Parallex/src/app/dashboard/README.md), [schedules/](file:///C:/Hackathons/Parallex/src/app/schedules/README.md), [settings/](file:///C:/Hackathons/Parallex/src/app/settings/README.md), [signin/](file:///C:/Hackathons/Parallex/src/app/signin/README.md).
+Route group folders: [bots/](file:///C:/Hackathons/Parallex/src/app/bots/README.md), [chats/](file:///C:/Hackathons/Parallex/src/app/chats/README.md), [dashboard/](file:///C:/Hackathons/Parallex/src/app/dashboard/README.md), [schedules/](file:///C:/Hackathons/Parallex/src/app/schedules/README.md), [settings/](file:///C:/Hackathons/Parallex/src/app/settings/README.md), [signin/](file:///C:/Hackathons/Parallex/src/app/signin/README.md), and [templates/](file:///C:/Hackathons/Parallex/src/app/templates/README.md).
 
 The Convex client and Convex Auth provider connection can be found in [providers.tsx](file:///C:/Hackathons/Parallex/src/app/providers.tsx).
 

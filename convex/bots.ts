@@ -11,6 +11,10 @@ import { v } from "convex/values";
 
 const DEFAULT_AVATAR_COLORS = 7;
 
+// Failed provisioning never created a provider inbox, so it does not
+// consume one of the three address slots.
+const ADDRESS_LIMIT_STATUSES = new Set(["active", "pending", "creating"]);
+
 async function cancelScheduledFunction(
   ctx: MutationCtx,
   id: Doc<"researchSchedules">["convexScheduledFunctionId"],
@@ -42,12 +46,18 @@ async function toBotSummary(
   ctx: QueryCtx,
   bot: Doc<"bots">,
 ): Promise<BotSummary> {
-  const inbox = await ctx.db
-    .query("agentMailInboxes")
-    .withIndex("by_owner_bot", (q) =>
-      q.eq("ownerId", bot.ownerId).eq("botId", bot._id),
-    )
-    .unique();
+  const inbox =
+    bot.emailInboxId === undefined
+      ? await ctx.db
+          .query("agentMailInboxes")
+          .withIndex("by_owner_bot", (q) =>
+            q.eq("ownerId", bot.ownerId).eq("botId", bot._id),
+          )
+          .unique()
+      : await ctx.db.get("agentMailInboxes", bot.emailInboxId);
+  if (inbox !== null && inbox.ownerId !== bot.ownerId) {
+    throw new Error("NOT_FOUND");
+  }
 
   let avatar: BotAvatar;
   if (bot.avatarKind === "default") {
@@ -69,7 +79,14 @@ async function toBotSummary(
     _id: bot._id,
     name: bot.name,
     mission: bot.mission,
-    emailCapability: bot.emailCapability,
+    emailCapability:
+      inbox?.status === "active"
+        ? "active"
+        : inbox?.status === "failed"
+          ? "failed"
+          : bot.emailCapability === "disabled"
+            ? "disabled"
+            : "provisioning",
     emailAddress:
       inbox?.status === "active" ? inbox.confirmedAddress ?? null : null,
     avatar,
@@ -123,6 +140,25 @@ export const getBot = query({
       instructionVersion: bot.instructionVersion,
       status: bot.status,
     };
+  },
+});
+
+export const listEmailIdentities = query({
+  args: {},
+  handler: async (ctx) => {
+    const ownerId = await getAuthenticatedUserId(ctx);
+    const inboxes = await ctx.db
+      .query("agentMailInboxes")
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
+      .take(20);
+    return inboxes
+      .filter((inbox) => ADDRESS_LIMIT_STATUSES.has(inbox.status))
+      .map((inbox) => ({
+        _id: inbox._id,
+        address: inbox.confirmedAddress ?? null,
+        desiredUsername: inbox.desiredUsername,
+        status: inbox.status,
+      }));
   },
 });
 
@@ -199,6 +235,8 @@ export const createBot = mutation({
     memory: v.optional(v.string()),
     recipientEmail: v.string(),
     avatarStorageId: v.optional(v.id("_storage")),
+    emailInboxId: v.optional(v.id("agentMailInboxes")),
+    desiredEmailUsername: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const ownerId = await getAuthenticatedUserId(ctx);
@@ -216,17 +254,48 @@ export const createBot = mutation({
       throw new Error("INVALID_EMAIL");
     }
 
-    const existingBots = await ctx.db
-      .query("bots")
+    if (
+      args.emailInboxId !== undefined &&
+      args.desiredEmailUsername !== undefined
+    ) {
+      throw new Error("INVALID_EMAIL_IDENTITY_SELECTION");
+    }
+    let selectedInbox =
+      args.emailInboxId === undefined
+        ? null
+        : await ctx.db.get("agentMailInboxes", args.emailInboxId);
+    if (
+      selectedInbox !== null &&
+      (selectedInbox.ownerId !== ownerId || selectedInbox.status !== "active")
+    ) {
+      throw new Error("INVALID_EMAIL_IDENTITY_SELECTION");
+    }
+    if (args.emailInboxId !== undefined && selectedInbox === null) {
+      throw new Error("INVALID_EMAIL_IDENTITY_SELECTION");
+    }
+    const inboxes = await ctx.db
+      .query("agentMailInboxes")
       .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
-      .collect();
-    const emailEnabledCount = existingBots.filter(
-      (bot) =>
-        bot.emailCapability === "provisioning" ||
-        bot.emailCapability === "active",
-    ).length;
-    if (emailEnabledCount >= 3) {
-      throw new Error("EMAIL_BOT_LIMIT");
+      .take(20);
+    if (
+      selectedInbox === null &&
+      args.emailInboxId === undefined &&
+      args.desiredEmailUsername === undefined
+    ) {
+      selectedInbox =
+        inboxes.find((inbox) => inbox.status === "active") ??
+        inboxes.find((inbox) =>
+          ["pending", "creating"].includes(inbox.status),
+        ) ??
+        null;
+    }
+    if (selectedInbox === null) {
+      const provisionedCount = inboxes.filter((inbox) =>
+        ADDRESS_LIMIT_STATUSES.has(inbox.status),
+      ).length;
+      if (provisionedCount >= 3) {
+        throw new Error("EMAIL_ADDRESS_LIMIT");
+      }
     }
 
     const lastBot = await ctx.db
@@ -280,12 +349,14 @@ export const createBot = mutation({
       name,
       mission,
       recipientEmail,
+      emailInboxId: selectedInbox?._id,
       instructionVersion: 0,
       avatarKind: args.avatarStorageId === undefined ? "default" : "upload",
       avatarColorIndex:
         args.avatarStorageId === undefined ? avatarColorIndex : undefined,
       avatarStorageId: args.avatarStorageId,
-      emailCapability: "provisioning",
+      emailCapability:
+        selectedInbox?.status === "active" ? "active" : "provisioning",
       status: "active",
       creationOrdinal,
       createdAt: now,
@@ -319,19 +390,27 @@ export const createBot = mutation({
       updatedAt: now,
     });
 
-    const inboxId = await ctx.db.insert("agentMailInboxes", {
-      ownerId,
-      botId,
-      desiredUsername: usernameFromBotName(name),
-      provisioningIdempotencyKey: botId,
-      status: "pending",
-      attemptCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await ctx.scheduler.runAfter(0, internal.workers.inboxProvisioner.provision, {
-      inboxId,
-    });
+    if (selectedInbox === null) {
+      const desiredUsername = usernameFromBotName(
+        args.desiredEmailUsername ?? name,
+      );
+      const inboxId = await ctx.db.insert("agentMailInboxes", {
+        ownerId,
+        botId,
+        desiredUsername,
+        provisioningIdempotencyKey: botId,
+        status: "pending",
+        attemptCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch("bots", botId, { emailInboxId: inboxId });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.workers.inboxProvisioner.provision,
+        { inboxId },
+      );
+    }
     return { botId };
   },
 });
@@ -426,13 +505,19 @@ export const retryEmailProvisioning = mutation({
   handler: async (ctx, args) => {
     const ownerId = await getAuthenticatedUserId(ctx);
     const bot = await requireOwnedBot(ctx, ownerId, args.botId);
-    const inbox = await ctx.db
-      .query("agentMailInboxes")
-      .withIndex("by_owner_bot", (q) =>
-        q.eq("ownerId", ownerId).eq("botId", bot._id),
-      )
-      .unique();
+    const inbox =
+      bot.emailInboxId === undefined
+        ? await ctx.db
+            .query("agentMailInboxes")
+            .withIndex("by_owner_bot", (q) =>
+              q.eq("ownerId", ownerId).eq("botId", bot._id),
+            )
+            .unique()
+        : await ctx.db.get("agentMailInboxes", bot.emailInboxId);
     if (inbox === null || inbox.status !== "failed") {
+      throw new Error("INVALID_PROVISIONING_STATE");
+    }
+    if (inbox.ownerId !== ownerId || inbox.botId !== bot._id) {
       throw new Error("INVALID_PROVISIONING_STATE");
     }
     if (bot.status !== "active") {

@@ -1,0 +1,650 @@
+.catalogShell,
+.overviewShell {
+  color: var(--ink);
+}
+
+.catalogHero {
+  align-items: end;
+  background:
+    linear-gradient(125deg, rgba(30, 27, 75, 0.98), rgba(55, 48, 163, 0.93)),
+    #1e1b4b;
+  border-radius: 28px;
+  color: white;
+  display: grid;
+  gap: 3rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding: clamp(2rem, 5vw, 4.8rem);
+  position: relative;
+}
+
+.catalogHero::after {
+  background: radial-gradient(circle, rgba(165, 180, 252, 0.42), transparent 68%);
+  content: "";
+  height: 420px;
+  position: absolute;
+  right: -190px;
+  top: -210px;
+  width: 420px;
+}
+
+.catalogHero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.catalogHero h1 {
+  font-size: clamp(2.7rem, 5vw, 5rem);
+  max-width: 850px;
+}
+
+.catalogHero p {
+  color: #e0e7ff;
+  line-height: 1.75;
+  margin: 0;
+  max-width: 690px;
+}
+
+.heroStat {
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 2rem;
+}
+
+.heroStat strong {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 4.5rem;
+  font-weight: 500;
+  line-height: 0.85;
+}
+
+.heroStat span {
+  color: #c7d2fe;
+  font-size: 0.75rem;
+  font-weight: 700;
+  max-width: 100px;
+  text-transform: uppercase;
+}
+
+.catalogControls {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin: 2.2rem 0 1.4rem;
+}
+
+.filterTabs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.filterTabs button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+  min-height: 38px;
+  padding: 0 1rem;
+}
+
+.filterTabs button:hover,
+.filterTabs button:focus-visible {
+  color: #18181b;
+}
+
+.filterTabs .activeFilter {
+  background: #18181b;
+  color: white;
+}
+
+.searchField {
+  max-width: 330px;
+  width: 100%;
+}
+
+.searchField input {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  min-height: 42px;
+  padding: 0 1rem;
+  width: 100%;
+}
+
+.searchField input:focus-visible,
+.filterTabs button:focus-visible,
+.templateCard:focus-visible,
+.backButton:focus-visible,
+.titleInput:focus-visible,
+.editArea:focus-visible,
+.scheduleCard input:focus-visible,
+.scheduleCard textarea:focus-visible,
+.scheduleCard select:focus-visible,
+.identitySelect:focus-visible,
+.addressInputRow input:focus-visible {
+  outline: 3px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.templateGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.templateCard {
+  align-items: start;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 245px;
+  padding: 1.5rem;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.templateCard:hover {
+  border-color: #a5b4fc;
+  box-shadow: 0 18px 42px rgba(30, 27, 75, 0.09);
+  transform: translateY(-2px);
+}
+
+.cardIndex,
+.overviewMark {
+  align-items: center;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  color: #3730a3;
+  display: inline-flex;
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 1.1rem;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.cardContent {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cardContent > strong {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 1.7rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tag,
+.scheduleTag {
+  background: #f4f4f5;
+  border-radius: 999px;
+  color: #52525b;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.32rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.scheduleTag {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.cardDescription,
+.cardOutcome {
+  color: #52525b;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.cardOutcome {
+  border-top: 1px solid var(--soft-line);
+  color: #71717a;
+  padding-top: 0.75rem;
+}
+
+.cardArrow {
+  color: #4f46e5;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding-top: 0.35rem;
+  text-transform: uppercase;
+}
+
+.noResults {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 4rem;
+  text-align: center;
+}
+
+.noResults span {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 2rem;
+}
+
+.noResults p {
+  color: var(--muted);
+  margin: 0.5rem 0 0;
+}
+
+.overviewShell {
+  padding-bottom: 7rem;
+}
+
+.overviewTopline {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.backButton {
+  background: transparent;
+  border: 0;
+  color: #52525b;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+  padding: 0;
+}
+
+.backButton:hover {
+  color: var(--indigo);
+}
+
+.overviewHeader {
+  align-items: start;
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-bottom: 3rem;
+  max-width: 960px;
+}
+
+.overviewHeader h1 {
+  font-size: clamp(2.8rem, 5vw, 5rem);
+}
+
+.overviewHeader p {
+  color: #52525b;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 720px;
+}
+
+.overviewMark {
+  height: 58px;
+  width: 58px;
+}
+
+.titleInput {
+  background: white;
+  border: 1px solid #a5b4fc;
+  border-radius: 12px;
+  color: var(--ink);
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: clamp(2.2rem, 5vw, 4.5rem);
+  letter-spacing: -0.04em;
+  max-width: 900px;
+  padding: 0.35rem 0.65rem;
+  width: 100%;
+}
+
+.overviewGrid {
+  align-items: start;
+  display: grid;
+  gap: 2.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.reviewColumn {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.reviewSection {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 52px minmax(0, 1fr);
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.reviewSection + .reviewSection {
+  border-top: 1px solid var(--line);
+}
+
+.reviewSection > div:last-child {
+  min-width: 0;
+}
+
+.sectionNumber {
+  color: #a5b4fc;
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 1.7rem;
+}
+
+.largeCopy {
+  color: #3f3f46;
+  font-size: 1rem;
+  line-height: 1.8;
+  margin: 0;
+  max-width: 780px;
+}
+
+.memoryBlock {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  color: #334155;
+  font-family: var(--font-inter), Arial, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.75;
+  margin: 0;
+  overflow: auto;
+  padding: 1.25rem;
+  white-space: pre-wrap;
+}
+
+.editArea,
+.scheduleCard input,
+.scheduleCard textarea,
+.scheduleCard select,
+.addressInputRow input,
+.identitySelect {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  color: #18181b;
+  font: inherit;
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.editArea {
+  line-height: 1.65;
+  resize: vertical;
+}
+
+.memoryEditor {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.scheduleList {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.scheduleCard {
+  background: #fafafa;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.1rem;
+}
+
+.scheduleHeading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: space-between;
+}
+
+.scheduleHeading span {
+  background: #ecfdf5;
+  border-radius: 999px;
+  color: #047857;
+  font-size: 0.68rem;
+  font-weight: 750;
+  padding: 0.35rem 0.6rem;
+}
+
+.scheduleCard p,
+.scheduleCard small {
+  color: #52525b;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.scheduleCard label,
+.addressField {
+  color: #3f3f46;
+  display: grid;
+  font-size: 0.74rem;
+  font-weight: 750;
+  gap: 0.45rem;
+}
+
+.scheduleFields {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr;
+}
+
+.timezoneNote {
+  color: #71717a;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  margin: 1rem 0 0;
+}
+
+.deployColumn {
+  display: grid;
+  gap: 1rem;
+  position: sticky;
+  top: 92px;
+}
+
+.emailPanel,
+.examplePanel {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.4rem;
+}
+
+.emailPanel > p {
+  color: #71717a;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.radioChoice {
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-top: 0.65rem;
+  padding: 0.85rem;
+}
+
+.radioChoice input {
+  accent-color: var(--indigo);
+  margin-top: 0.15rem;
+}
+
+.radioChoice span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.radioChoice strong {
+  font-size: 0.8rem;
+}
+
+.radioChoice small,
+.addressField small,
+.examplePanel small {
+  color: #71717a;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.disabledChoice {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.identitySelect,
+.addressField {
+  margin-top: 0.65rem;
+}
+
+.addressInputRow {
+  align-items: center;
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.addressInputRow input {
+  border: 0;
+  border-radius: 0;
+}
+
+.addressInputRow strong {
+  background: #f4f4f5;
+  border-left: 1px solid #d4d4d8;
+  color: #52525b;
+  font-size: 0.73rem;
+  padding: 0.8rem;
+}
+
+.examplePanel p {
+  color: #3730a3;
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 1.35rem;
+  line-height: 1.35;
+}
+
+.deployBar {
+  align-items: center;
+  backdrop-filter: blur(18px);
+  background: rgba(24, 24, 27, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  bottom: 1rem;
+  box-shadow: 0 20px 60px rgba(24, 24, 27, 0.25);
+  color: white;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  left: 50%;
+  max-width: 920px;
+  padding: 0.9rem 1rem 0.9rem 1.2rem;
+  position: fixed;
+  transform: translateX(-50%);
+  width: calc(100% - 2rem);
+  z-index: 30;
+}
+
+.deployBar > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.deployBar span {
+  color: #a1a1aa;
+  font-size: 0.65rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.deployBar strong {
+  font-size: 0.84rem;
+}
+
+.deployError {
+  color: #fecaca;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 900px) {
+  .catalogHero,
+  .overviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroStat {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.24);
+    padding: 1.5rem 0 0;
+  }
+
+  .deployColumn {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .catalogControls,
+  .deployBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .searchField,
+  .deployBar :global(.button) {
+    max-width: none;
+    width: 100%;
+  }
+
+  .templateGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .templateCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cardArrow {
+    display: none;
+  }
+
+  .overviewHeader,
+  .reviewSection {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduleFields {
+    grid-template-columns: 1fr;
+  }
+
+  .deployBar {
+    bottom: 0.5rem;
+  }
+}

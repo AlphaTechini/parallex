@@ -15,6 +15,7 @@ const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 export function BotCreationForm() {
   const profile = useQuery(api.userProfiles.getMyProfile, {});
+  const emailIdentities = useQuery(api.bots.listEmailIdentities, {});
   const generateUpload = useMutation(api.bots.generateAvatarUploadUrl);
   const finalizeUpload = useMutation(api.bots.finalizeAvatarUpload);
   const createBot = useMutation(api.bots.createBot);
@@ -23,12 +24,33 @@ export function BotCreationForm() {
   const [mission, setMission] = useState("");
   const [memory, setMemory] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailMode, setEmailMode] = useState<"existing" | "new" | null>(null);
+  const [selectedInboxId, setSelectedInboxId] = useState("");
+  const [emailPrefix, setEmailPrefix] = useState("");
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const effectiveRecipient = recipientEmail || profile?.accountEmail || "";
+  const activeEmailIdentities = (emailIdentities ?? []).filter(
+    (identity) => identity.status === "active" && identity.address !== null,
+  );
+  const emailAddressLimitReached = (emailIdentities?.length ?? 0) >= 3;
+  const normalizedEmailPrefix = emailPrefix
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 30);
+  const effectiveEmailMode =
+    emailMode ?? (activeEmailIdentities.length > 0 ? "existing" : "new");
+  const effectiveInboxId =
+    selectedInboxId || activeEmailIdentities[0]?._id || "";
+  const emailSelectionReady =
+    effectiveEmailMode === "existing"
+      ? Boolean(effectiveInboxId)
+      : !emailAddressLimitReached;
 
   function handleAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
@@ -69,6 +91,9 @@ export function BotCreationForm() {
         memory: memory || undefined,
         recipientEmail: effectiveRecipient,
         avatarStorageId,
+        ...(effectiveEmailMode === "existing"
+          ? { emailInboxId: effectiveInboxId as Id<"agentMailInboxes"> }
+          : { desiredEmailUsername: normalizedEmailPrefix || name }),
       });
       router.push(`/bots?botId=${result.botId}`);
     } catch (cause) {
@@ -145,7 +170,53 @@ export function BotCreationForm() {
             />
             <small>Reports arrive here from the bot&apos;s own inbox.</small>
           </label>
-          <p className="limit-note">Demo: up to 3 email-enabled bots.</p>
+          {activeEmailIdentities.length > 0 ? (
+            <label className="field-label">
+              <span>Bot email address</span>
+              <select
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setEmailMode(value === "new" ? "new" : "existing");
+                  if (value !== "new") setSelectedInboxId(value);
+                }}
+                value={effectiveEmailMode === "new" ? "new" : effectiveInboxId}
+              >
+                {activeEmailIdentities.map((identity) => (
+                  <option key={identity._id} value={identity._id}>
+                    {identity.address}
+                  </option>
+                ))}
+                {!emailAddressLimitReached ? (
+                  <option value="new">Create a new address</option>
+                ) : null}
+              </select>
+            </label>
+          ) : null}
+          {effectiveEmailMode === "new" && !emailAddressLimitReached ? (
+            <label className="field-label">
+              <span>Email prefix</span>
+              <input
+                className="text-input"
+                maxLength={30}
+                onChange={(event) => setEmailPrefix(event.target.value)}
+                placeholder={name || "research-bot"}
+                value={emailPrefix}
+              />
+              <small>
+                {normalizedEmailPrefix || "research-bot"}@agentmail.to. Leave
+                blank to derive the prefix from the bot name.
+              </small>
+            </label>
+          ) : null}
+          {effectiveEmailMode === "new" && emailAddressLimitReached ? (
+            <p className="form-error">
+              Your account already has three email addresses. Assign an
+              existing one to continue.
+            </p>
+          ) : null}
+          <p className="limit-note">
+            Unlimited bots can share up to three email addresses.
+          </p>
         </Card>
 
         <Card className="form-card avatar-card">
@@ -175,7 +246,11 @@ export function BotCreationForm() {
         </Card>
 
         {error ? <p className="form-error">{error}</p> : null}
-        <Button disabled={submitting} size="large" type="submit">
+        <Button
+          disabled={submitting || !emailSelectionReady}
+          size="large"
+          type="submit"
+        >
           {submitting ? "Creating bot..." : "Create research bot"}
         </Button>
       </div>

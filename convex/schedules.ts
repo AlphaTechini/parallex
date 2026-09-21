@@ -44,6 +44,53 @@ export const listSchedules = query({
   },
 });
 
+export const listSchedulesForTool = query({
+  args: { toolCallId: v.id("toolCalls") },
+  handler: async (ctx, args) => {
+    const call = await ctx.db.get("toolCalls", args.toolCallId);
+    if (
+      call === null ||
+      call.functionName !== "list_research_schedules"
+    ) {
+      throw new Error("TOOL_CALL_INVALID");
+    }
+    const run = await ctx.db.get("researchRuns", call.runId);
+    const bot = run === null ? null : await ctx.db.get("bots", run.botId);
+    if (
+      run === null ||
+      bot === null ||
+      call.ownerId !== run.ownerId ||
+      bot.ownerId !== run.ownerId ||
+      run.botId !== bot._id ||
+      bot.status !== "active"
+    ) {
+      throw new Error("SCHEDULE_CONTEXT_INVALID");
+    }
+    const schedules = await ctx.db
+      .query("researchSchedules")
+      .withIndex("by_bot_status_next", (q) => q.eq("botId", bot._id))
+      .take(100);
+    return {
+      schedules: schedules
+        .filter(
+          (schedule) =>
+            schedule.ownerId === run.ownerId && schedule.status !== "deleted",
+        )
+        .map((schedule) => ({
+          scheduleId: schedule._id,
+          name: schedule.name,
+          researchPrompt: schedule.researchPrompt,
+          semanticReason: schedule.semanticReason,
+          scheduleKind: schedule.scheduleKind,
+          timezone: schedule.timezone,
+          recurrence: schedule.recurrence ?? null,
+          nextRunAt: schedule.status === "active" ? schedule.nextRunAt : null,
+          status: schedule.status,
+        })),
+    };
+  },
+});
+
 export const pauseSchedule = mutation({
   args: { scheduleId: v.id("researchSchedules") },
   handler: async (ctx, args) => {

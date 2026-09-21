@@ -128,16 +128,19 @@ export const createScheduleMutation = internalMutation({
 
     const existingSchedules = await ctx.db
       .query("researchSchedules")
-      .withIndex("by_created_run", (q) => q.eq("createdByRunId", run._id))
-      .collect();
+      .withIndex("by_bot_status_next", (q) => q.eq("botId", bot._id))
+      .take(100);
     const same = existingSchedules.find(
       (schedule) =>
         schedule.ownerId === run.ownerId &&
-        schedule.name === name &&
-        schedule.researchPrompt === researchPrompt &&
-        schedule.scheduleKind === args.scheduleKind &&
-        schedule.timezone === args.timezone &&
-        schedule.nextRunAt === args.nextRunAt,
+        schedule.status !== "deleted" &&
+        (schedule.semanticReason === semanticReason ||
+          (schedule.name === name &&
+            schedule.researchPrompt === researchPrompt &&
+            schedule.scheduleKind === args.scheduleKind &&
+            schedule.timezone === args.timezone &&
+            JSON.stringify(schedule.recurrence ?? null) ===
+              JSON.stringify(normalizedRecurrence ?? null))),
     );
     if (same !== undefined) {
       return { scheduleId: same._id, nextRunAt: same.nextRunAt, status: same.status };

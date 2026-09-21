@@ -6,7 +6,7 @@ To find the deterministic SVG avatar renderer for default bots and the image ren
 
 To find the dashboard card with name, mission, email capability, and chat entry points visit [BotCard.tsx](file:///C:/Hackathons/Parallex/src/components/bots/BotCard.tsx).
 
-To find the creation form with the two-phase avatar upload, recipient defaulting, and mission limit visit [BotCreationForm.tsx](file:///C:/Hackathons/Parallex/src/components/bots/BotCreationForm.tsx).
+To find the creation form with the two-phase avatar upload, recipient defaulting, shared email identity selection, and mission limit visit [BotCreationForm.tsx](file:///C:/Hackathons/Parallex/src/components/bots/BotCreationForm.tsx).
 
 To find the per-bot memory editor visit [BotMemoryEditor.tsx](file:///C:/Hackathons/Parallex/src/components/bots/BotMemoryEditor.tsx).
 
@@ -22,6 +22,7 @@ The avatar upload and bot creation connection can be found in [BotCreationForm.t
 
 - Default avatars are rendered from a stored palette index instead of uploaded files, so the seven-color loop costs no storage and stays deterministic per creation order.
 - The creation form uploads the avatar through a claim token before bot creation and passes the storage identifier to `createBot`, so an orphaned upload can never become bot data.
+- Bot creation can assign an owned active AgentMail identity or provision a new prefix. Bot count is unlimited; the backend enforces the three-address cap against distinct inbox rows.
 - Mission is presented as descriptive metadata with explanatory copy, reinforcing that it is not a model instruction; memory is edited separately.
 - The bot detail page keeps only a slim identity header above the tabs; configuration (bot information, archive, memory) lives in the Settings tab so the default Chat tab stays focused on conversations.
 - Bot links use `/bots?botId=...` so the detail experience remains a client-rendered static route. The identifier only selects data; the backend verifies ownership before returning it.

@@ -81,6 +81,7 @@ describe("side-effect idempotency", () => {
     const owner = await seedUser(t, identities.ownerA, "Owner A");
     const world = await seedWorld(t, owner, {
       providerInboxId: "inbox-replay",
+      providerThreadId: "provider-thread-replay",
     });
     const inbound = {
       providerEventId: "event-replay",

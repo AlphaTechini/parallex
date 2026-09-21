@@ -16,16 +16,18 @@ The product promise is that a long research task is independent of the browser. 
 ## Features
 
 - Email and password authentication through Convex Auth.
-- An initially empty bot dashboard with a direct path to create the first bot.
-- Bot creation with name, mission (500 character limit), per-bot memory, recipient email, and optional uploaded avatar or deterministic default avatar.
-- Automatic AgentMail inbox provisioning with idempotent, retryable state, limited to three email-enabled bots in the demo deployment.
+- An initially empty bot dashboard with direct paths to manual creation or twenty curated templates.
+- Bot creation with name, mission (500 character limit), per-bot memory, recipient email, shared email identity selection, and optional uploaded avatar or deterministic default avatar.
+- Automatic AgentMail inbox provisioning with idempotent, retryable state. Accounts may create unlimited bots that share up to three distinct email addresses.
+- A protected template catalog for everyday, shopping, software, AI, and hardware workflows, including review-first deployment and optional first-run schedules.
 - Global custom instructions and per-bot custom instructions, versioned per run.
 - Six supported models across OpenAI and Zhipu: GPT-5.6 Luna, GPT-5.6 Terra, GPT-5.6 Sol, GPT-6 Astra, GLM-5.3 Flash, and GLM-5.3, each with model-appropriate reasoning effort levels.
 - One active run per chat with visible queueing for follow-up requests.
-- Fifteen Firecrawl research tools plus chat title generation, report publication, email delivery, and schedule creation.
+- Fifteen Firecrawl research tools plus chat title generation, report publication, email delivery, schedule introspection and creation, and approval-gated outreach drafts.
 - Live research activity, reasoning summaries where supported, report status, and truthful email status in the chat UI.
 - Markdown and PDF report artifacts with sanitized Markdown, allowed-URL citation enforcement, and a layout-versioned PDF renderer.
 - Inbound email replies mapped back to the originating chat through provider thread identifiers.
+- External merchant outreach with a visible recipient, subject, body, and constraint draft that requires authenticated user approval before the first send.
 - Recurring and one-time schedules with pause, resume, and delete lifecycle controls.
 - Strict per-user isolation of bots, chats, messages, runs, sources, artifacts, schedules, and email records.
 
@@ -64,6 +66,8 @@ The full folder tree, logic map, and links to every folder README are in [struct
 - Report Markdown is sanitized on the server. HTML tags are stripped and links or bare URLs are rewritten or removed unless they match canonical source URLs recorded for the run. The client additionally renders Markdown through a sanitizing renderer.
 - Uploads are owner-bound through single-use claim tokens. Files are validated by type and size before an attachment record exists, and attachments bind to a message and run at submission time.
 - Schedule conversation bounding. Each schedule occurrence creates a fresh run with optional compact prior context instead of one unbounded conversation.
+- Shared email identity routing. Several bots may send from one AgentMail inbox, while provider thread records route every known reply back to one originating bot and chat. Unknown unthreaded inbound messages are ignored without a model call.
+- Outreach approval is transactional. The model may prepare a draft but cannot send it; only the authenticated approval mutation schedules the first external email. Approved thread constraints are copied into a private per-run instruction snapshot for autonomous replies.
 - Provider-specific durability. OpenAI runs use background Responses with stream cursor recovery. Zhipu runs store each Chat Completions turn and tool barrier in Convex, then reconstruct bounded history for the next turn. Zhipu requests cannot be canceled at the provider after dispatch, but canceled runs cannot commit results or start further tools.
 - Provider-compatible tool normalization. OpenAI-strict schemas keep nullable optional fields explicit, while the backend fills omitted nullable values from Chat Completions providers such as Zhipu. Empty domain filters are treated as absent; when both non-empty include and exclude filters arrive, the narrower include allowlist wins.
 - Cross-provider continuity. Zhipu always receives bounded local chat history. Returning to OpenAI after a Zhipu turn starts a fresh OpenAI conversation seeded from the same bounded local transcript so provider switching does not omit intervening messages.
@@ -183,13 +187,13 @@ The current build intentionally excludes the following, and these exclusions are
 
 - Google sign-in, email OTP sign-in, and mandatory email verification.
 - AgentMail custom domain verification and any DNS editor.
-- More than three email-enabled bots in the demo deployment, matching the provider plan allowance.
-- Outreach workflows, lead harvesting, or messaging channels beyond the product and email surfaces.
+- More than three distinct AgentMail inboxes per account. Bot count itself is not limited.
+- Unapproved outreach, contact harvesting, bulk messaging, or messaging channels beyond the product and email surfaces.
 - Manual schedule creation or freeform schedule editing; schedules are created conversationally and managed only through pause, resume, and delete.
 - DOCX and spreadsheet report formats; reports are Markdown and PDF.
 - Raw model chain-of-thought display; only provider reasoning summaries, when supported, are shown.
 - A separate transactional email provider; AgentMail is the single email surface.
-- A template system, public bot marketplace, and per-user model spend management.
+- Public or user-authored template publishing, a bot marketplace, and per-user model spend management.
 
 Free-plan constraints on Convex (file storage, database bandwidth, action duration) and AgentMail (inbox count) are accepted engineering constraints for this stage.
 

@@ -88,6 +88,8 @@ const toolFunctionName = v.union(
   v.literal("publish_report"),
   v.literal("send_research_email"),
   v.literal("send_direct_message"),
+  v.literal("prepare_outreach_draft"),
+  v.literal("list_research_schedules"),
   v.literal("create_research_schedule"),
 );
 
@@ -164,6 +166,7 @@ const appTables = {
     name: v.string(),
     mission: v.string(),
     recipientEmail: v.string(),
+    emailInboxId: v.optional(v.id("agentMailInboxes")),
     currentInstructionVersionId: v.optional(v.id("instructionVersions")),
     instructionVersion: v.number(),
     avatarKind: v.union(v.literal("default"), v.literal("upload")),
@@ -189,7 +192,8 @@ const appTables = {
     .index("by_owner", ["ownerId"])
     .index("by_owner_status", ["ownerId", "status"])
     .index("by_owner_creation_ordinal", ["ownerId", "creationOrdinal"])
-    .index("by_owner_recipient", ["ownerId", "recipientEmail"]),
+    .index("by_owner_recipient", ["ownerId", "recipientEmail"])
+    .index("by_owner_email_inbox", ["ownerId", "emailInboxId"]),
 
   agentMailInboxes: defineTable({
     ownerId: v.id("users"),
@@ -212,6 +216,7 @@ const appTables = {
     updatedAt: v.number(),
   })
     .index("by_bot", ["botId"])
+    .index("by_owner", ["ownerId"])
     .index("by_owner_bot", ["ownerId", "botId"])
     .index("by_provider_inbox", ["providerInboxId"])
     .index("by_confirmed_address", ["confirmedAddress"])
@@ -505,6 +510,8 @@ const appTables = {
     agentMailInboxId: v.id("agentMailInboxes"),
     providerThreadId: v.string(),
     authorizedSenderEmail: v.string(),
+    outreachApproved: v.optional(v.boolean()),
+    outreachConstraints: v.optional(v.string()),
     status: v.union(v.literal("active"), v.literal("closed")),
     lastMessageAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -514,6 +521,39 @@ const appTables = {
     .index("by_inbox_provider_thread", ["agentMailInboxId", "providerThreadId"])
     .index("by_chat", ["chatId"])
     .index("by_owner_chat", ["ownerId", "chatId"])
+    .index("by_owner_status", ["ownerId", "status"]),
+
+  outreachDrafts: defineTable({
+    ownerId: v.id("users"),
+    botId: v.id("bots"),
+    chatId: v.id("chats"),
+    runId: v.id("researchRuns"),
+    agentMailInboxId: v.id("agentMailInboxes"),
+    emailMessageId: v.optional(v.id("emailMessages")),
+    recipientEmail: v.string(),
+    merchantName: v.string(),
+    productLabel: v.string(),
+    subject: v.string(),
+    body: v.string(),
+    constraints: v.string(),
+    idempotencyKey: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("failed"),
+    ),
+    providerMessageId: v.optional(v.string()),
+    providerThreadId: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
+    sentAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_run_created", ["runId", "createdAt"])
+    .index("by_idempotency_key", ["idempotencyKey"])
+    .index("by_provider_thread", ["providerThreadId"])
     .index("by_owner_status", ["ownerId", "status"]),
 
   emailMessages: defineTable({

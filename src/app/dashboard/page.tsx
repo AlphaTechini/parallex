@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import { BotCard } from "@/components/bots/BotCard";
@@ -21,10 +21,23 @@ export default function DashboardPage() {
 function DashboardContent() {
   const bots = useQuery(api.bots.listBots, {});
   const ensureProfile = useMutation(api.userProfiles.ensureProfile);
+  const [emailFilter, setEmailFilter] = useState("all");
 
   useEffect(() => {
     void ensureProfile({});
   }, [ensureProfile]);
+
+  const emailAddresses = Array.from(
+    new Set(
+      (bots ?? [])
+        .map((bot) => bot.emailAddress)
+        .filter((address): address is string => address !== null),
+    ),
+  ).sort();
+  const visibleBots =
+    emailFilter === "all"
+      ? bots ?? []
+      : (bots ?? []).filter((bot) => bot.emailAddress === emailFilter);
 
   return (
     <AppShell>
@@ -59,11 +72,38 @@ function DashboardContent() {
           </Link>
         </section>
       ) : (
-        <section className="bot-grid" aria-label="Research bots">
-          {bots.map((bot) => (
-            <BotCard bot={bot} key={bot._id} />
-          ))}
-        </section>
+        <>
+          {emailAddresses.length > 1 ? (
+            <label className="field-label mb-6 max-w-sm">
+              <span>Filter by bot email</span>
+              <select
+                onChange={(event) => setEmailFilter(event.target.value)}
+                value={emailFilter}
+              >
+                <option value="all">All email addresses</option>
+                {emailAddresses.map((address) => (
+                  <option key={address} value={address}>
+                    {address}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {visibleBots.length === 0 ? (
+            <section className="empty-state">
+              <div>
+                <span className="eyebrow">No matching bots</span>
+                <h2>Choose another email address</h2>
+              </div>
+            </section>
+          ) : (
+            <section className="bot-grid" aria-label="Research bots">
+              {visibleBots.map((bot) => (
+                <BotCard bot={bot} key={bot._id} />
+              ))}
+            </section>
+          )}
+        </>
       )}
     </AppShell>
   );
