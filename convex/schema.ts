@@ -87,6 +87,7 @@ const toolFunctionName = v.union(
   v.literal("update_chat_title"),
   v.literal("publish_report"),
   v.literal("send_research_email"),
+  v.literal("send_direct_message"),
   v.literal("create_research_schedule"),
 );
 

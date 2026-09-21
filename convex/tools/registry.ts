@@ -22,6 +22,7 @@ import { execute as readStoredReport } from "./readStoredReport";
 import { execute as updateChatTitle } from "./updateChatTitle";
 import { execute as publishReport } from "./publishReport";
 import { execute as sendResearchEmail } from "./sendResearchEmail";
+import { execute as sendDirectMessage } from "./sendDirectMessage";
 import { execute as createResearchSchedule } from "./createResearchSchedule";
 
 type ToolHandler = (context: ToolExecutionContext) => Promise<ExecutorResult>;
@@ -47,6 +48,7 @@ const REGISTRY: Record<ToolFunctionName, ToolHandler> = {
   update_chat_title: updateChatTitle,
   publish_report: publishReport,
   send_research_email: sendResearchEmail,
+  send_direct_message: sendDirectMessage,
   create_research_schedule: createResearchSchedule,
 };
 

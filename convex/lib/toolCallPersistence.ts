@@ -122,6 +122,14 @@ export async function insertFunctionCall(
       safeDetail: validation.ok ? undefined : validation.safeMessage,
       toolCallId,
     });
+  } else if (call.name === "send_direct_message") {
+    await insertRunEvent(ctx, run, {
+      kind: "email_send",
+      label: "Preparing direct email",
+      status: validation.ok ? "started" : "failed",
+      safeDetail: validation.ok ? undefined : validation.safeMessage,
+      toolCallId,
+    });
   }
   return toolCallId;
 }

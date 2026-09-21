@@ -6,7 +6,7 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
-import { emailSendKey } from "./lib/normalize";
+import { emailSendKey, sha256Hex } from "./lib/normalize";
 import { getAuthenticatedUserId, requireOwnedRun } from "./lib/authHelpers";
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
@@ -33,9 +33,12 @@ export function canApplyDeliveryStatus(
 
 function emailKind(
   message: Doc<"emailMessages">,
-): "report" | "thread_reply" {
+): "report" | "thread_reply" | "direct" {
   if (message.idempotencyKey.startsWith("email-reply:")) {
     return "thread_reply";
+  }
+  if (message.idempotencyKey.startsWith("email-direct:")) {
+    return "direct";
   }
   if (message.idempotencyKey.startsWith("email:") && message.reportId !== undefined) {
     return "report";
@@ -49,7 +52,7 @@ type EmailGraph = {
   chat: Doc<"chats">;
   bot: Doc<"bots">;
   inbox: ActiveInbox;
-  report: Doc<"reports">;
+  report: Doc<"reports"> | null;
 };
 
 async function nextRunEventSequence(ctx: MutationCtx, runId: Id<"researchRuns">): Promise<number> {
@@ -83,31 +86,39 @@ async function loadEmailGraph(
   ctx: MutationCtx,
   toolCallId: Id<"toolCalls">,
   reportId?: string,
+  direct = false,
 ): Promise<EmailGraph> {
   const call = await ctx.db.get("toolCalls", toolCallId);
-  if (call === null || call.functionName !== "send_research_email") throw new Error("TOOL_CALL_INVALID");
+  if (
+    call === null ||
+    call.functionName !== (direct ? "send_direct_message" : "send_research_email")
+  ) {
+    throw new Error("TOOL_CALL_INVALID");
+  }
   const run = await ctx.db.get("researchRuns", call.runId);
   const chat = run === null ? null : await ctx.db.get("chats", run.chatId);
   const bot = run === null ? null : await ctx.db.get("bots", run.botId);
   let report: Doc<"reports"> | null = null;
-  if (reportId !== undefined && reportId !== null) {
-    const normalizedReportId = ctx.db.normalizeId("reports", reportId);
-    report = normalizedReportId === null
-      ? null
-      : await ctx.db.get("reports", normalizedReportId);
-    if (
-      report !== null &&
-      (report.ownerId !== run?.ownerId || report.chatId !== run?.chatId)
-    ) {
-      report = null;
-    }
-  } else if (run !== null) {
-    report = await ctx.db.query("reports").withIndex("by_run", (q) => q.eq("runId", run._id)).first();
-    if (
-      report !== null &&
-      (report.ownerId !== run.ownerId || report.chatId !== run.chatId)
-    ) {
-      report = null;
+  if (!direct) {
+    if (reportId !== undefined && reportId !== null) {
+      const normalizedReportId = ctx.db.normalizeId("reports", reportId);
+      report = normalizedReportId === null
+        ? null
+        : await ctx.db.get("reports", normalizedReportId);
+      if (
+        report !== null &&
+        (report.ownerId !== run?.ownerId || report.chatId !== run?.chatId)
+      ) {
+        report = null;
+      }
+    } else if (run !== null) {
+      report = await ctx.db.query("reports").withIndex("by_run", (q) => q.eq("runId", run._id)).first();
+      if (
+        report !== null &&
+        (report.ownerId !== run.ownerId || report.chatId !== run.chatId)
+      ) {
+        report = null;
+      }
     }
   }
   const inbox = bot === null
@@ -118,12 +129,11 @@ async function loadEmailGraph(
     chat === null ||
     bot === null ||
     inbox === null ||
-    report === null ||
+    (!direct && report === null) ||
     call.ownerId !== run.ownerId ||
     chat.ownerId !== run.ownerId ||
     bot.ownerId !== run.ownerId ||
     inbox.ownerId !== run.ownerId ||
-    report.ownerId !== run.ownerId ||
     run.botId !== bot._id ||
     run.chatId !== chat._id ||
     chat.botId !== bot._id ||
@@ -135,7 +145,7 @@ async function loadEmailGraph(
     chat.activeRunId !== run._id ||
     inbox.providerInboxId === undefined ||
     inbox.confirmedAddress === undefined ||
-    (report.status !== "ready" && report.status !== "partial")
+    (!direct && report!.status !== "ready" && report!.status !== "partial")
   ) {
     throw new Error("EMAIL_CONTEXT_INVALID");
   }
@@ -158,6 +168,7 @@ export const beginOutboundSend = internalMutation({
   },
   handler: async (ctx, args) => {
     const graph = await loadEmailGraph(ctx, args.toolCallId, args.reportId);
+    if (graph.report === null) throw new Error("EMAIL_CONTEXT_INVALID");
     if (graph.call.status !== "running" || graph.run.cancelRequested) throw new Error("RUN_NOT_LIVE");
     const key = emailSendKey(graph.run._id, graph.report._id);
     const existing = await ctx.db
@@ -214,9 +225,20 @@ async function outboundContext(
   graph: EmailGraph,
   emailMessage: Doc<"emailMessages">,
 ) {
+  if (graph.report === null) {
+    return {
+      state: "sending" as const,
+      emailMessage,
+      inboxId: graph.inbox.providerInboxId!,
+      fromAddress: graph.inbox.confirmedAddress!,
+      toAddress: graph.bot.recipientEmail,
+      report: null,
+      artifacts: [],
+    };
+  }
   const artifacts = await ctx.db
     .query("reportArtifacts")
-    .withIndex("by_report_format", (q) => q.eq("reportId", graph.report._id))
+    .withIndex("by_report_format", (q) => q.eq("reportId", graph.report!._id))
     .collect();
   return {
     state: "sending" as const,
@@ -228,6 +250,64 @@ async function outboundContext(
     artifacts: artifacts.filter((artifact) => artifact.deletedAt === undefined),
   };
 }
+
+export const beginDirectSend = internalMutation({
+  args: {
+    toolCallId: v.id("toolCalls"),
+    subject: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const graph = await loadEmailGraph(ctx, args.toolCallId, undefined, true);
+    if (graph.call.status !== "running" || graph.run.cancelRequested) throw new Error("RUN_NOT_LIVE");
+    const subject = args.subject.replace(/\u0000/g, "").trim().slice(0, 300);
+    const body = args.body.replace(/\u0000/g, "").trim().slice(0, 10_000);
+    if (!subject || !body) throw new Error("INVALID_EMAIL_INPUT");
+    const key = `email-direct:${graph.run._id}:${await sha256Hex(`${subject}\n${body}`)}`;
+    const existing = await ctx.db
+      .query("emailMessages")
+      .withIndex("by_idempotency_key", (q) => q.eq("idempotencyKey", key))
+      .unique();
+    if (existing !== null) {
+      if (existing.ownerId !== graph.run.ownerId || existing.runId !== graph.run._id) {
+        throw new Error("EMAIL_IDEMPOTENCY_CONFLICT");
+      }
+      if (existing.status === "accepted" || existing.status === "delivered") {
+        return { state: "accepted" as const, emailMessage: existing };
+      }
+      if (existing.status !== "sending") {
+        await ctx.db.patch("emailMessages", existing._id, {
+          status: "sending",
+          failureCode: undefined,
+          lastAttemptAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      return await outboundContext(ctx, graph, { ...existing, status: "sending" });
+    }
+    const now = Date.now();
+    const emailMessageId = await ctx.db.insert("emailMessages", {
+      ownerId: graph.run.ownerId,
+      botId: graph.bot._id,
+      chatId: graph.chat._id,
+      runId: graph.run._id,
+      direction: "outbound",
+      idempotencyKey: key,
+      fromAddress: graph.inbox.confirmedAddress,
+      toAddresses: [graph.bot.recipientEmail],
+      subject,
+      plainTextBody: body,
+      status: "sending",
+      lastAttemptAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const emailMessage = await ctx.db.get("emailMessages", emailMessageId);
+    if (emailMessage === null) throw new Error("EMAIL_NOT_FOUND");
+    await emailEvent(ctx, graph.run, "started");
+    return await outboundContext(ctx, graph, emailMessage);
+  },
+});
 
 export const markOutboundAccepted = internalMutation({
   args: {
@@ -341,20 +421,20 @@ export const getOutboundSendContext = internalQuery({
     if (
       bot === null ||
       inbox === null ||
-      report === null ||
       run === null ||
       message.ownerId !== bot.ownerId ||
       inbox.ownerId !== message.ownerId ||
-      report.ownerId !== message.ownerId ||
-      report.runId !== run._id ||
-      report.botId !== bot._id ||
-      report.chatId !== message.chatId ||
-      (report.status !== "ready" && report.status !== "partial") ||
+      (report !== null &&
+        (report.ownerId !== message.ownerId ||
+          report.runId !== run._id ||
+          report.botId !== bot._id ||
+          report.chatId !== message.chatId ||
+          (report.status !== "ready" && report.status !== "partial"))) ||
       inbox.status !== "active" ||
       inbox.providerInboxId === undefined ||
       inbox.confirmedAddress === undefined
     ) throw new Error("EMAIL_CONTEXT_INVALID");
-    const artifacts = await ctx.db
+    const artifacts = report === null ? [] : await ctx.db
       .query("reportArtifacts")
       .withIndex("by_report_format", (q) => q.eq("reportId", report._id))
       .collect();

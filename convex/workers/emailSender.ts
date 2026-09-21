@@ -40,6 +40,11 @@ const beginOutbound = makeFunctionReference<
   },
   SendContext | { state: "accepted"; emailMessage: SendContext["emailMessage"] }
 >("emails:beginOutboundSend");
+const beginDirect = makeFunctionReference<
+  "mutation",
+  { toolCallId: Id<"toolCalls">; subject: string; body: string },
+  SendContext | { state: "accepted"; emailMessage: SendContext["emailMessage"] }
+>("emails:beginDirectSend");
 const getOutbound = makeFunctionReference<
   "query",
   { emailMessageId: Id<"emailMessages"> },
@@ -54,7 +59,7 @@ const getRetryKind = makeFunctionReference<
   "query",
   { emailMessageId: Id<"emailMessages"> },
   {
-    kind: "report" | "thread_reply";
+    kind: "report" | "thread_reply" | "direct";
     status: string;
     runId: Id<"researchRuns"> | null;
   }
@@ -129,12 +134,16 @@ async function sendOutbound(
     };
   }
   try {
-    const attachment = await attachmentBytes(ctx, context.artifacts);
-    const body = `${context.emailMessage.plainTextBody ?? ""}\n\n${
-      attachment === undefined
-        ? "The stored report was not attached because it exceeded the provider attachment limit."
-        : `The ${attachment.filename.endsWith(".pdf") ? "PDF" : "Markdown"} report is attached.`
-    }`;
+    const attachment = context.artifacts.length === 0
+      ? undefined
+      : await attachmentBytes(ctx, context.artifacts);
+    const attachmentNote =
+      context.artifacts.length === 0
+        ? ""
+        : attachment === undefined
+          ? "\n\nThe stored report was not attached because it exceeded the provider attachment limit."
+          : `\n\nThe ${attachment.filename.endsWith(".pdf") ? "PDF" : "Markdown"} report is attached.`;
+    const body = `${context.emailMessage.plainTextBody ?? ""}${attachmentNote}`;
     const sent = await getAgentMailClient().inboxes.messages.send(
       context.inboxId,
       {
@@ -241,6 +250,24 @@ async function sendReplyForRun(ctx: ActionCtx, runId: Id<"researchRuns">) {
     return { ok: false, reason: "provider_rejected" };
   }
 }
+
+export const sendDirectEmail = internalAction({
+  args: {
+    toolCallId: v.id("toolCalls"),
+    subject: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const context = await ctx.runMutation(beginDirect, args);
+    if (context.state === "accepted") {
+      return {
+        kind: "immediate" as const,
+        outputJson: JSON.stringify({ ok: true, emailMessageId: context.emailMessage._id, status: "accepted" }),
+      };
+    }
+    return await sendOutbound(ctx, context);
+  },
+});
 
 export const retryEmail = internalAction({
   args: { emailMessageId: v.id("emailMessages") },

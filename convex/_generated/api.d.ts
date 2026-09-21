@@ -67,6 +67,7 @@ import type * as tools_listStoredReports from "../tools/listStoredReports.js";
 import type * as tools_publishReport from "../tools/publishReport.js";
 import type * as tools_readStoredReport from "../tools/readStoredReport.js";
 import type * as tools_registry from "../tools/registry.js";
+import type * as tools_sendDirectMessage from "../tools/sendDirectMessage.js";
 import type * as tools_sendResearchEmail from "../tools/sendResearchEmail.js";
 import type * as tools_types from "../tools/types.js";
 import type * as tools_updateChatTitle from "../tools/updateChatTitle.js";
@@ -147,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   "tools/publishReport": typeof tools_publishReport;
   "tools/readStoredReport": typeof tools_readStoredReport;
   "tools/registry": typeof tools_registry;
+  "tools/sendDirectMessage": typeof tools_sendDirectMessage;
   "tools/sendResearchEmail": typeof tools_sendResearchEmail;
   "tools/types": typeof tools_types;
   "tools/updateChatTitle": typeof tools_updateChatTitle;

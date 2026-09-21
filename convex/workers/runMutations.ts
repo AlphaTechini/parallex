@@ -830,14 +830,53 @@ export const claimToolPhase = internalMutation({
       return { state: "waiting" as const, toolCallIds: [] };
     }
     const now = Date.now();
+    let callsToClaim = phaseCalls;
     if (nextPhase === 3) {
       const reports = await ctx.db
         .query("reports")
         .withIndex("by_run", (q) => q.eq("runId", run._id))
         .collect();
-      if (!reports.some((report) => report.status === "ready" || report.status === "partial")) {
-        for (const call of phaseCalls) {
-          const safeMessage = "A stored research report is required before email delivery.";
+      const runnableCalls = [];
+      for (const call of phaseCalls) {
+        if (call.functionName !== "send_research_email") {
+          runnableCalls.push(call);
+          continue;
+        }
+        const hasCurrentReport = reports.some(
+          (report) =>
+            report.ownerId === run.ownerId &&
+            report.chatId === run.chatId &&
+            (report.status === "ready" || report.status === "partial"),
+        );
+        let valid = hasCurrentReport;
+        if (!valid) {
+          try {
+            const parsed: unknown = JSON.parse(call.argumentsJson);
+            const reportId =
+              typeof parsed === "object" && parsed !== null && "reportId" in parsed
+                ? (parsed as { reportId?: unknown }).reportId
+                : undefined;
+            if (typeof reportId === "string" && reportId.length > 0) {
+              const normalizedReportId = ctx.db.normalizeId("reports", reportId);
+              const report =
+                normalizedReportId === null
+                  ? null
+                  : await ctx.db.get("reports", normalizedReportId);
+              valid =
+                report !== null &&
+                report.ownerId === run.ownerId &&
+                report.chatId === run.chatId &&
+                (report.status === "ready" || report.status === "partial");
+            }
+          } catch {
+            valid = false;
+          }
+        }
+        if (valid) {
+          runnableCalls.push(call);
+        } else {
+          const safeMessage =
+            "A stored research report is required before email delivery.";
           await ctx.db.patch("toolCalls", call._id, {
             status: "failed",
             resultJson: JSON.stringify({
@@ -862,10 +901,13 @@ export const claimToolPhase = internalMutation({
             });
           }
         }
+      }
+      if (runnableCalls.length === 0) {
         return { state: "terminal" as const, toolCallIds: [] };
       }
+      callsToClaim = runnableCalls;
     }
-    for (const call of phaseCalls) {
+    for (const call of callsToClaim) {
       await ctx.db.patch("toolCalls", call._id, {
         status: "running",
         startedAt: call.startedAt ?? now,
@@ -884,7 +926,7 @@ export const claimToolPhase = internalMutation({
     });
     return {
       state: "claimed" as const,
-      toolCallIds: phaseCalls.map((call) => call._id),
+      toolCallIds: callsToClaim.map((call) => call._id),
     };
   },
 });

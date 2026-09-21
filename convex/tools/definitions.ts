@@ -79,6 +79,7 @@ export const TOOL_FUNCTION_NAMES = [
   "update_chat_title",
   "publish_report",
   "send_research_email",
+  "send_direct_message",
   "create_research_schedule",
 ] as const;
 
@@ -294,6 +295,14 @@ const TOOL_DEFINITIONS: readonly FunctionTool[] = [
     }),
   ),
   tool(
+    "send_direct_message",
+    "Send a short direct email to the bot's configured recipient without any report, for example a quick answer, status note, or delivery test. Do not use this to deliver research results.",
+    objectSchema({
+      subject: stringSchema({ minLength: 1, maxLength: 300 }),
+      body: stringSchema({ minLength: 1, maxLength: 10000 }),
+    }),
+  ),
+  tool(
     "create_research_schedule",
     "Create a backend-validated future or recurring research task. Recurring work must concern information that can meaningfully change or accumulate.",
     objectSchema({
@@ -322,7 +331,9 @@ export function getResearchToolDefinitions({
   return TOOL_DEFINITIONS.filter(
     (definition) =>
       (includeChatTitle || definition.name !== "update_chat_title") &&
-      (includeResearchEmail || definition.name !== "send_research_email"),
+      (includeResearchEmail ||
+        (definition.name !== "send_research_email" &&
+          definition.name !== "send_direct_message")),
   ).map((definition) => ({ ...definition }));
 }
 
