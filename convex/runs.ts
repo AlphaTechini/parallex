@@ -48,6 +48,21 @@ export const cancelRun = mutation({
       cancelRequested: true,
       updatedAt: now,
     });
+    if (run.assistantMessageId !== undefined) {
+      const assistant = await ctx.db.get("messages", run.assistantMessageId);
+      if (
+        assistant !== null &&
+        assistant.ownerId === ownerId &&
+        assistant.runId === run._id &&
+        assistant.role === "assistant"
+      ) {
+        await ctx.db.patch("messages", assistant._id, {
+          content: assistant.content.trim() || "Research canceled.",
+          status: "failed",
+          updatedAt: now,
+        });
+      }
+    }
 
     const chat = await ctx.db.get("chats", run.chatId);
     if (

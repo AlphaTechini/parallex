@@ -437,6 +437,45 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
+function schemaAllowsNull(schema: JsonSchema): boolean {
+  if (schema.type === "null") return true;
+  return (
+    Array.isArray(schema.anyOf) &&
+    schema.anyOf.some((candidate) => isRecord(candidate) && schemaAllowsNull(candidate))
+  );
+}
+
+function normalizeNullableArguments(value: unknown, schema: JsonSchema): unknown {
+  if (Array.isArray(schema.anyOf) && value !== null) {
+    const candidate = schema.anyOf.find(
+      (item) => isRecord(item) && item.type !== "null",
+    );
+    return isRecord(candidate)
+      ? normalizeNullableArguments(value, candidate)
+      : value;
+  }
+  const items = schema.items;
+  if (schema.type === "array" && Array.isArray(value) && isRecord(items)) {
+    return value.map((item) => normalizeNullableArguments(item, items));
+  }
+  if (schema.type !== "object" || !isRecord(value)) return value;
+
+  const properties = isRecord(schema.properties) ? schema.properties : {};
+  const normalized: Record<string, unknown> = { ...value };
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (!isRecord(propertySchema)) continue;
+    if (!(key in normalized) && schemaAllowsNull(propertySchema)) {
+      normalized[key] = null;
+    } else if (key in normalized) {
+      normalized[key] = normalizeNullableArguments(
+        normalized[key],
+        propertySchema,
+      );
+    }
+  }
+  return normalized;
+}
+
 export type ToolArgumentsValidation =
   | { ok: true; value: Record<string, unknown>; canonicalJson: string }
   | { ok: false; code: string; safeMessage: string };
@@ -462,6 +501,23 @@ export function validateToolArguments(
   if (definition === undefined || definition.parameters === null) {
     return { ok: false, code: "unknown_tool", safeMessage: "The requested function is not available." };
   }
+  parsed = normalizeNullableArguments(parsed, definition.parameters);
+  if (name === "firecrawl_search_web" && isRecord(parsed)) {
+    if (Array.isArray(parsed.includeDomains) && parsed.includeDomains.length === 0) {
+      parsed.includeDomains = null;
+    }
+    if (Array.isArray(parsed.excludeDomains) && parsed.excludeDomains.length === 0) {
+      parsed.excludeDomains = null;
+    }
+    if (
+      Array.isArray(parsed.includeDomains) &&
+      parsed.includeDomains.length > 0 &&
+      Array.isArray(parsed.excludeDomains) &&
+      parsed.excludeDomains.length > 0
+    ) {
+      parsed.excludeDomains = null;
+    }
+  }
   const schemaError = validateSchema(parsed, definition.parameters, "$args");
   if (schemaError !== null || !isRecord(parsed)) {
     return {
@@ -479,15 +535,6 @@ export function validateToolArguments(
         ok: false,
         code: "invalid_arguments",
         safeMessage: "Provide exactly one document URL or attachment ID.",
-      };
-    }
-  }
-  if (name === "firecrawl_search_web") {
-    if (Array.isArray(parsed.includeDomains) && Array.isArray(parsed.excludeDomains)) {
-      return {
-        ok: false,
-        code: "invalid_arguments",
-        safeMessage: "Include-domain and exclude-domain filters cannot be combined.",
       };
     }
   }
