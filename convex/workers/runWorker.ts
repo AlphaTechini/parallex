@@ -736,15 +736,57 @@ function safeWorkerFailure(error: unknown): { code: string; message: string } {
     };
   }
   const code = sanitizeErrorCode(error);
+  const validationDetail = safeOpenAIValidationDetail(error);
   const message =
-    code === "unauthorized"
+    validationDetail ??
+    (code === "unauthorized"
       ? "OpenAI rejected the configured credential."
       : code === "rate_limited"
         ? "OpenAI rate-limited the research run."
         : code === "timeout"
           ? "The provider request timed out before it could be resumed safely."
-          : "The research run could not be completed safely.";
+          : "The research run could not be completed safely.");
   return { code, message };
+}
+
+function safeOpenAIValidationDetail(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  const candidate = error as {
+    status?: unknown;
+    code?: unknown;
+    param?: unknown;
+    message?: unknown;
+  };
+  if (candidate.status !== 400 && candidate.status !== 422) return null;
+
+  const providerCode = safeProviderField(candidate.code, 80);
+  const param = safeProviderField(candidate.param, 120);
+  const detail = safeProviderMessage(candidate.message);
+  const fields = [
+    `status ${candidate.status}`,
+    providerCode ? `code ${providerCode}` : null,
+    param ? `field ${param}` : null,
+  ].filter((field): field is string => field !== null);
+  return `OpenAI rejected this request (${fields.join(", ")}).${
+    detail ? ` ${detail}` : ""
+  }`;
+}
+
+function safeProviderField(value: unknown, limit: number): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[^a-zA-Z0-9_.\[\]-]/g, "").slice(0, limit);
+  return normalized || null;
+}
+
+function safeProviderMessage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .replace(/\b(?:bearer\s+|sk-|sess-)[a-zA-Z0-9_-]+\b/gi, "[redacted]")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 320);
+  return normalized || null;
 }
 
 export const drive = internalAction({
