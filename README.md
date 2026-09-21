@@ -130,6 +130,8 @@ Variable names only, matching `.env.example`. Values are never committed.
 | --- | --- | --- |
 | `NEXT_PUBLIC_CONVEX_URL` | Next.js client | URL of the Convex deployment used by the browser client and auth provider setup. |
 | `CONVEX_DEPLOYMENT` | Convex CLI | Deployment name selected by the local Convex CLI tooling. |
+| `JWT_PRIVATE_KEY` | Convex server | RS256 private signing key for Convex Auth. Generate it together with `JWKS` using `node scripts/generate-auth-keys.mjs`; never expose it. |
+| `JWKS` | Convex server | Public JSON Web Key Set matching `JWT_PRIVATE_KEY`, used to verify Convex Auth tokens. |
 | `FIRECRAWL_API_KEY` | Convex server | Server-side credential for all Firecrawl provider calls. |
 | `AGENTMAIL_API_KEY` | Convex server | Server-side credential for inbox provisioning and email send or reply. |
 | `AGENTMAIL_WEBHOOK_SECRET` | Convex server | Svix signing secret used to verify inbound webhook signatures. |
