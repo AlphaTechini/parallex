@@ -27,23 +27,32 @@ type Message = {
 export function MessageRow({ message }: { message: Message }) {
   if (message.role === "user") {
     return (
-      <article className="message message-user">
-        <div className="message-meta">
-          {message.origin === "email" ? <Badge>via email</Badge> : null}
-          {message.origin === "schedule" ? <Badge tone="indigo">scheduled</Badge> : null}
-          <span title="Server accepted your request; research continues if you close this tab">✓</span>
-        </div>
-        <p>{message.content}</p>
-        {message.attachments.length ? (
-          <div className="message-attachments">
-            {message.attachments.map((attachment) => (
-              <span key={attachment._id}>
-                ▤ {attachment.fileName} · {formatBytes(attachment.sizeBytes)}
-              </span>
-            ))}
+      <section className="message-turn message-turn-user">
+        <article className="message message-user">
+          <p>{message.content}</p>
+          {message.attachments.length ? (
+            <div className="message-attachments">
+              {message.attachments.map((attachment) => (
+                <span key={attachment._id}>
+                  ▤ {attachment.fileName} · {formatBytes(attachment.sizeBytes)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="message-meta">
+            {message.origin === "email" ? <Badge>via email</Badge> : null}
+            {message.origin === "schedule" ? <Badge tone="indigo">scheduled</Badge> : null}
+            <span
+              aria-label="Stored by the server and accepted for background processing"
+              className="message-receipt"
+              title="Stored by the server; research continues if you close this tab"
+            >
+              ✓✓
+            </span>
           </div>
-        ) : null}
-      </article>
+        </article>
+        {message.runId ? <MessageRunSection runId={message.runId} /> : null}
+      </section>
     );
   }
 
@@ -58,7 +67,6 @@ export function MessageRow({ message }: { message: Message }) {
           <span /> <span /> <span />
         </div>
       )}
-      {message.runId ? <MessageRunSection runId={message.runId} /> : null}
       {message.runId ? <RunArtifacts runId={message.runId} /> : null}
     </article>
   );

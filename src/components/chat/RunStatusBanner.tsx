@@ -7,7 +7,7 @@ import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/Button";
 import { safeErrorMessage } from "@/lib/errors";
-import { runStageLabel } from "@/lib/runStatus";
+import { isRunActive, runStageLabel } from "@/lib/runStatus";
 
 export function RunStatusBanner({
   runId,
@@ -19,12 +19,19 @@ export function RunStatusBanner({
   const cancel = useMutation(api.runs.cancelRun);
   const [error, setError] = useState<string | null>(null);
 
+  if (!isRunActive(status)) return null;
+  const queued = status === "queued";
+
   return (
-    <div className="run-banner">
-      <span className="live-orb" aria-hidden="true" />
+    <div className={queued ? "run-banner run-banner-queued" : "run-banner"}>
+      <span className={queued ? "queue-orb" : "live-orb"} aria-hidden="true" />
       <div>
-        <strong>{runStageLabel(status)}</strong>
-        <span>Work continues securely in the cloud.</span>
+        <strong>{queued ? "Queued" : runStageLabel(status)}</strong>
+        <span>
+          {queued
+            ? "Waiting for the earlier request in this chat."
+            : "Work continues securely in the cloud."}
+        </span>
       </div>
       <Button
         onClick={async () => {

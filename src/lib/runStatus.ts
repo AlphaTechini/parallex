@@ -30,3 +30,7 @@ export function runStageLabel(status: string): string {
 export function isRunActive(status: string | null | undefined): boolean {
   return status ? ACTIVE_RUNS.has(status) : false;
 }
+
+export function isRunExecuting(status: string | null | undefined): boolean {
+  return status !== "queued" && isRunActive(status);
+}

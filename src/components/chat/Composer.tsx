@@ -23,10 +23,12 @@ import {
 export function Composer({
   chatId,
   configuredProviders,
+  onSubmitted,
   runActive,
 }: {
   chatId: Id<"chats">;
   configuredProviders: ProviderId[];
+  onSubmitted?: () => void;
   runActive: boolean;
 }) {
   const submitPrompt = useMutation(api.messages.submitPrompt);
@@ -63,6 +65,7 @@ export function Composer({
         clientSubmissionId: crypto.randomUUID(),
         attachmentIds: attachments.map((attachment) => attachment.id),
       });
+      onSubmitted?.();
       setContent("");
       setAttachments([]);
     } catch (cause) {
@@ -100,7 +103,7 @@ export function Composer({
           }
         }}
         placeholder="Ask for a market scan, literature review, policy update, or scheduled brief..."
-        rows={3}
+        rows={2}
         value={content}
       />
       <div className="composer-toolbar">
