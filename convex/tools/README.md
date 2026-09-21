@@ -15,3 +15,4 @@ The model run connection can be found in [toolExecutor.ts](file:///C:/Hackathons
 - Each capability has one narrow handler instead of one generic provider function.
 - Provider results are normalized before they are persisted or returned to the model.
 - Side effects revalidate the owning run and tool call immediately before mutation or provider use.
+- Chat Completions providers may omit nullable fields even when they receive the OpenAI-strict schema. Validation fills only omitted nullable properties, including nested objects, before applying the same type and bounds checks. For web search, empty domain arrays become absent filters and a non-empty include allowlist takes precedence over a conflicting exclude list.

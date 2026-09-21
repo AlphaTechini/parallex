@@ -68,12 +68,14 @@ Acceptance family: save before work, browser independence, resumable streaming, 
 
 | Check | Method |
 | --- | --- |
-| The prompt is persisted before the receipt check appears. | Manual: submit a research request and confirm the user message and run rows exist in the Convex dashboard the moment the checkmark renders; the run starts in `accepted`. |
+| The prompt is persisted before the receipt appears. | Manual: submit a research request and confirm the user message and run rows exist in the Convex dashboard the moment `✓✓` renders; the run starts in `accepted`. |
 | Closing the browser does not stop a run. | Manual: start a long research request, close the tab entirely, wait, reopen the chat, and confirm the run advanced or completed; the `researchRuns` row must show progress timestamps written while no browser was connected. |
 | Another device shows the current state. | Manual: while the run from the previous check is active, open the same chat on a second device or profile and confirm status, activity history, and partial output match the database. |
 | Streaming resumes from the saved cursor. | Manual plus inspection: for a run that survives a worker restart (kill `pnpm convex:dev` mid-run, restart it), confirm the run row keeps its last provider sequence number and the worker continues from that cursor without duplicating visible events. |
 | No single action exceeds the execution limit. | Automated plus inspection: `pnpm typecheck` and `pnpm lint` pass; during a long run confirm in the Convex dashboard logs that worker slices stay short and requeue rather than one long-lived action. |
 | Duplicate submission protection. | Manual: resubmit the same prompt after a network hiccup (or replay the mutation with the same submission identifier) and confirm the original message and run identifiers are returned instead of a second run. |
+| Per-prompt activity ordering. | Manual: submit a research prompt and confirm its live tool timeline appears directly below that prompt, the final assistant response follows it, and the cancel control disappears at terminal state. |
+| GLM nullable tool compatibility. | Manual: run a GLM web-research prompt without domain filters and confirm Firecrawl receives the request rather than rejecting omitted nullable fields. Repeat with empty arrays and with conflicting include/exclude filters; confirm empty filters are absent and the include allowlist wins. |
 | Provider switching preserves context. | Manual: complete an OpenAI turn, a Zhipu turn, then another OpenAI turn that refers to the GLM answer. Confirm the final run understands the intervening exchange and that a fresh OpenAI conversation mapping is stored. |
 | Zhipu turns survive browser closure. | Manual plus inspection: run GLM research with at least one Firecrawl tool, close the browser, then confirm `zhipuTurns` and `toolCalls` advance to completion and the final answer appears after reopening. |
 

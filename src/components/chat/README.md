@@ -10,7 +10,7 @@ To find the submission composer with model and effort selectors, duplicate-safe 
 
 To find the owner-bound attachment upload flow visit [AttachmentPicker.tsx](file:///C:/Hackathons/Parallex/src/components/chat/AttachmentPicker.tsx).
 
-To find message rendering, including email and schedule origin badges and the receipt checkmark visit [MessageRow.tsx](file:///C:/Hackathons/Parallex/src/components/chat/MessageRow.tsx).
+To find message rendering, including email and schedule origin badges and the durable `✓✓` receipt visit [MessageRow.tsx](file:///C:/Hackathons/Parallex/src/components/chat/MessageRow.tsx).
 
 To find sanitized Markdown rendering for assistant content visit [MarkdownMessage.tsx](file:///C:/Hackathons/Parallex/src/components/chat/MarkdownMessage.tsx).
 
@@ -24,9 +24,10 @@ The message persistence connection can be found in [Composer.tsx](file:///C:/Hac
 
 ## Architectural decisions
 
-- Statuses come from database records. The receipt checkmark means the server persisted the message; activity badges reflect tool and email rows, so the UI cannot show success before the backend confirms it.
+- Statuses come from database records. The `✓✓` receipt means the server transaction persisted the message and durable run; activity badges reflect tool and email rows, so the UI cannot show success before the backend confirms it.
 - Assistant Markdown is rendered through a sanitizing renderer with an http, https, and mailto URL allowlist, independent of server-side report sanitization.
 - Attachment uploads use the same claim-token flow as avatars and reject unsupported types and sizes before submission, so rejected files never reach the research pipeline.
 - The composer shows only models whose provider credential is active, applies provider-specific reasoning levels, and queues instead of blocking during an active run, matching the backend contract.
 - Chat links use `/chats?chatId=...` rather than unbounded dynamic paths so the Next export can be hosted as static assets. The route value never authorizes access; `ChatExperience` receives only data returned by owner-checked Convex queries.
-- The activity feed is collapsible, expanded by default while a run is live and collapsed after completion, which keeps finished answers prominent without hiding the audit trail.
+- Each research timeline appears directly below its triggering prompt and before the assistant result. Executing runs expand their activity and show cancellation; queued runs remain visually distinct, and terminal runs collapse by default without retaining a stop control.
+- The compact composer stays at the bottom of the chat viewport. Smart follow tracks new messages and activity while the reader remains near the bottom, but does not pull the page away from older content after an intentional upward scroll.
