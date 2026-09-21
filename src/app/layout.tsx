@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Newsreader } from "next/font/google";
 import type { ReactNode } from "react";
-import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -29,9 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${newsreader.variable}`}>
-        <ConvexAuthNextjsServerProvider>
-          <Providers>{children}</Providers>
-        </ConvexAuthNextjsServerProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

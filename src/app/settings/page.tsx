@@ -1,11 +1,13 @@
 import { AppShell } from "@/components/layout/AppShell";
+import { AuthGuard } from "@/components/layout/AuthGuard";
 import { GlobalMemoryForm } from "@/components/settings/GlobalMemoryForm";
 import { OpenAIKeyForm } from "@/components/settings/OpenAIKeyForm";
 import { ZhipuKeyForm } from "@/components/settings/ZhipuKeyForm";
 
 export default function SettingsPage() {
   return (
-    <AppShell>
+    <AuthGuard>
+      <AppShell>
       <div className="page-heading">
         <div>
           <span className="eyebrow">Account</span>
@@ -18,6 +20,7 @@ export default function SettingsPage() {
         <ZhipuKeyForm />
         <GlobalMemoryForm />
       </div>
-    </AppShell>
+      </AppShell>
+    </AuthGuard>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 
@@ -26,10 +27,17 @@ export default function SignInPage() {
 
 function SignInForm() {
   const { signIn } = useAuthActions();
+  const { isLoading, isAuthenticated } = useConvexAuth();
   const [flow, setFlow] = useState<AuthFlow>("signIn");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -1,8 +1,23 @@
-import { isAuthenticatedNextjs } from "@convex-dev/auth/nextjs/server";
-import { redirect } from "next/navigation";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useConvexAuth } from "convex/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-export default async function HomePage() {
-  redirect((await isAuthenticatedNextjs()) ? "/dashboard" : "/signin");
+import { Spinner } from "@/components/ui/Spinner";
+
+export default function HomePage() {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+    router.replace(isAuthenticated ? "/dashboard" : "/signin");
+  }, [isLoading, isAuthenticated, router]);
+
+  return (
+    <main className="page-loading">
+      <Spinner label="Loading Parallex" />
+    </main>
+  );
 }

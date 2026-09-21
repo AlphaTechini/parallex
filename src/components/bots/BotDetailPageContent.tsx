@@ -1,39 +1,66 @@
 "use client";
 
-import type { Id } from "../../../../convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { BotAvatar } from "@/components/bots/BotAvatar";
 import { BotMemoryEditor } from "@/components/bots/BotMemoryEditor";
 import { ChatList } from "@/components/bots/ChatList";
 import { AppShell } from "@/components/layout/AppShell";
+import { AuthGuard } from "@/components/layout/AuthGuard";
 import { BotSchedules } from "@/components/schedules/BotSchedules";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { safeErrorMessage } from "@/lib/errors";
 
-export default function BotDetailPage() {
-  const params = useParams<{ botId: string }>();
-  const botId = params.botId as Id<"bots">;
-  const bot = useQuery(api.bots.getBot, { botId });
+export function BotDetailPageContent() {
+  const botIdParam = useSearchParams().get("botId");
+  const botId = botIdParam;
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!botId) {
+      router.replace("/dashboard");
+    }
+  }, [botId, router]);
+
+  if (botId === null) {
+    return (
+      <div className="page-loading">
+        <Spinner label="Loading bot" />
+      </div>
+    );
+  }
+
+  return (
+    <AuthGuard>
+      <BotDetailWorkspace rawBotId={botId} />
+    </AuthGuard>
+  );
+}
+
+function BotDetailWorkspace({ rawBotId }: { rawBotId: string }) {
+  const botId = useQuery(api.routeIds.resolveBotId, { id: rawBotId });
+  const bot = useQuery(
+    api.bots.getBot,
+    botId === undefined || botId === null ? "skip" : { botId },
+  );
   const archive = useMutation(api.bots.archiveBot);
   const router = useRouter();
   const [tab, setTab] = useState<"chats" | "schedules">("chats");
   const [error, setError] = useState<string | null>(null);
-
-  if (bot === undefined) {
+  if (botId === undefined || bot === undefined) {
     return (
       <AppShell>
         <div className="page-loading"><Spinner label="Loading bot" /></div>
       </AppShell>
     );
   }
-  if (bot === null) {
+  if (botId === null || bot === null) {
     return (
       <AppShell>
         <section className="empty-state"><h1>Bot not found</h1></section>

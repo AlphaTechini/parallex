@@ -30,7 +30,7 @@ export function ChatList({ botId }: { botId: Id<"bots"> }) {
     setError(null);
     try {
       const result = await createChat({ botId });
-      router.push(`/chats/${result.chatId}`);
+      router.push(`/chats?chatId=${result.chatId}`);
     } catch (cause) {
       setError(safeErrorMessage(cause));
     } finally {
@@ -60,7 +60,7 @@ export function ChatList({ botId }: { botId: Id<"bots"> }) {
       ) : (
         <div className="chat-list">
           {results.map((chat) => (
-            <Link className="chat-row" href={`/chats/${chat._id}`} key={chat._id}>
+             <Link className="chat-row" href={`/chats?chatId=${chat._id}`} key={chat._id}>
               <div>
                 <strong>{chat.title || "Untitled chat"}</strong>
                 <span>{formatRelativeTime(chat.lastMessageAt)}</span>

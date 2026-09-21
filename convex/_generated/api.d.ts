@@ -37,11 +37,13 @@ import type * as lib_zhipuClient from "../lib/zhipuClient.js";
 import type * as messages from "../messages.js";
 import type * as prompts_researchProtocol from "../prompts/researchProtocol.js";
 import type * as reports from "../reports.js";
+import type * as routeIds from "../routeIds.js";
 import type * as runEvents from "../runEvents.js";
 import type * as runs from "../runs.js";
 import type * as scheduleOccurrenceWorker from "../scheduleOccurrenceWorker.js";
 import type * as schedules from "../schedules.js";
 import type * as sources from "../sources.js";
+import type * as staticSite from "../staticSite.js";
 import type * as tools_createResearchSchedule from "../tools/createResearchSchedule.js";
 import type * as tools_definitions from "../tools/definitions.js";
 import type * as tools_firecrawl_agentGather from "../tools/firecrawl/agentGather.js";
@@ -113,11 +115,13 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   "prompts/researchProtocol": typeof prompts_researchProtocol;
   reports: typeof reports;
+  routeIds: typeof routeIds;
   runEvents: typeof runEvents;
   runs: typeof runs;
   scheduleOccurrenceWorker: typeof scheduleOccurrenceWorker;
   schedules: typeof schedules;
   sources: typeof sources;
+  staticSite: typeof staticSite;
   "tools/createResearchSchedule": typeof tools_createResearchSchedule;
   "tools/definitions": typeof tools_definitions;
   "tools/firecrawl/agentGather": typeof tools_firecrawl_agentGather;
@@ -180,4 +184,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  staticHosting: import("@convex-dev/static-hosting/_generated/component.js").ComponentApi<"staticHosting">;
+};

@@ -70,7 +70,7 @@ export function BotCreationForm() {
         recipientEmail: effectiveRecipient,
         avatarStorageId,
       });
-      router.push(`/bots/${result.botId}`);
+      router.push(`/bots?botId=${result.botId}`);
     } catch (cause) {
       setError(safeErrorMessage(cause));
     } finally {

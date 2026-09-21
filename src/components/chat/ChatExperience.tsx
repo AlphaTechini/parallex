@@ -49,7 +49,7 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
   return (
     <div className="chat-layout">
       <aside className="chat-rail">
-        <Link className="back-link" href={`/bots/${bot._id}`}>← {bot.name}</Link>
+        <Link className="back-link" href={`/bots?botId=${bot._id}`}>← {bot.name}</Link>
         <BotAvatar avatar={bot.avatar} name={bot.name} size="medium" />
         <div>
           <span className="eyebrow">Conversation</span>

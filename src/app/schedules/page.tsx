@@ -4,10 +4,19 @@ import { useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 import { AppShell } from "@/components/layout/AppShell";
+import { AuthGuard } from "@/components/layout/AuthGuard";
 import { BotScheduleGroup } from "@/components/schedules/BotScheduleGroup";
 import { Spinner } from "@/components/ui/Spinner";
 
 export default function SchedulesPage() {
+  return (
+    <AuthGuard>
+      <SchedulesContent />
+    </AuthGuard>
+  );
+}
+
+function SchedulesContent() {
   const bots = useQuery(api.bots.listBots, {});
   return (
     <AppShell>

@@ -67,7 +67,7 @@ export function BotCard({ bot }: Props) {
         )}
       </div>
       {error ? <p className="form-error">{error}</p> : null}
-      <Link className="text-link" href={`/bots/${bot._id}`}>
+      <Link className="text-link" href={`/bots?botId=${bot._id}`}>
         Open bot <span aria-hidden="true">→</span>
       </Link>
     </article>

@@ -2,10 +2,12 @@ import Link from "next/link";
 
 import { BotCreationForm } from "@/components/bots/BotCreationForm";
 import { AppShell } from "@/components/layout/AppShell";
+import { AuthGuard } from "@/components/layout/AuthGuard";
 
 export default function NewBotPage() {
   return (
-    <AppShell>
+    <AuthGuard>
+      <AppShell>
       <div className="page-heading compact">
         <div>
           <Link className="back-link" href="/dashboard">
@@ -17,6 +19,7 @@ export default function NewBotPage() {
         </div>
       </div>
       <BotCreationForm />
-    </AppShell>
+      </AppShell>
+    </AuthGuard>
   );
 }

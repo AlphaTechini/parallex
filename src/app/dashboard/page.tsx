@@ -7,9 +7,18 @@ import { useEffect } from "react";
 import { api } from "../../../convex/_generated/api";
 import { BotCard } from "@/components/bots/BotCard";
 import { AppShell } from "@/components/layout/AppShell";
+import { AuthGuard } from "@/components/layout/AuthGuard";
 import { Spinner } from "@/components/ui/Spinner";
 
 export default function DashboardPage() {
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
+  );
+}
+
+function DashboardContent() {
   const bots = useQuery(api.bots.listBots, {});
   const ensureProfile = useMutation(api.userProfiles.ensureProfile);
 
