@@ -31,7 +31,7 @@ The product promise is that a long research task is independent of the browser. 
 
 ## Architecture
 
-Parallex is a Next.js 16 App Router frontend backed entirely by Convex. Convex is the database, realtime subscription layer, authentication provider, action runtime, durable scheduler, and file store. No additional backend service is required.
+Parallex is a statically exported Next.js 16 App Router frontend backed and hosted by Convex. Convex is the database, realtime subscription layer, authentication provider, action runtime, durable scheduler, file store, and static-site host. No additional backend service is required.
 
 ```
 Browser (React 19, Next 16)
@@ -42,7 +42,7 @@ Convex backend
   |-- Run worker state machine (Node actions, short slices)
   |-- Tool registry and handlers (Firecrawl, reports, email, schedules)
   |-- Job pollers and durable scheduled functions
-  |-- HTTP actions (Convex Auth routes, AgentMail webhook)
+  |-- HTTP actions (Convex Auth routes, AgentMail webhook, static site)
   |-- File Storage (avatars, reports, research uploads)
   |
   +--> OpenAI Responses API (background responses, streaming)
@@ -65,7 +65,8 @@ The full folder tree, logic map, and links to every folder README are in [struct
 - Schedule conversation bounding. Each schedule occurrence creates a fresh run with optional compact prior context instead of one unbounded conversation.
 - Provider-specific durability. OpenAI runs use background Responses with stream cursor recovery. Zhipu runs store each Chat Completions turn and tool barrier in Convex, then reconstruct bounded history for the next turn. Zhipu requests cannot be canceled at the provider after dispatch, but canceled runs cannot commit results or start further tools.
 - Cross-provider continuity. Zhipu always receives bounded local chat history. Returning to OpenAI after a Zhipu turn starts a fresh OpenAI conversation seeded from the same bounded local transcript so provider switching does not omit intervening messages.
-- The Next.js proxy is a routing convenience, not an authorization boundary. Every Convex function derives the authenticated user independently and verifies record ownership.
+- The static export uses a client-side auth guard rather than a Next.js request proxy. This allows the frontend to live on Convex storage; every Convex function still derives the authenticated user independently and verifies record ownership.
+- Static hosting keeps existing auth and webhook paths at the deployment root. A small adapter maps Next's `route/index.html` export layout to clean route URLs before the static-hosting component applies its SPA fallback.
 
 ## Security model
 
@@ -111,6 +112,14 @@ pnpm dev
 pnpm convex:dev
 ```
 
+Publish a smoke-test build to the selected Convex development deployment:
+
+```sh
+pnpm deploy:static
+```
+
+The site is served at `https://<deployment>.convex.site`. The uploaded static build uses the Convex deployment URL already present in `.env.local`.
+
 Sign up with email and password, add an OpenAI or Zhipu API key in Settings, then create the first bot.
 
 ## Environment variables
@@ -149,6 +158,9 @@ Route registration is in [convex/http.ts](convex/http.ts) and the handler is in 
 | Tests | `pnpm test` | Runs Vitest in run mode. |
 | Convex dev | `pnpm convex:dev` | Syncs Convex functions and connects to a deployment. |
 | Convex dashboard | `pnpm convex:dashboard` | Opens the Convex dashboard for the selected deployment. |
+| Target-aware static build | `pnpm build:static` | Builds `out/` using the hosting CLI's target URL, or the current `NEXT_PUBLIC_CONVEX_URL` outside that CLI. |
+| Static-site smoke test | `pnpm deploy:static` | Builds `out/` and uploads it to the selected Convex development deployment. |
+| Production static deploy | `pnpm deploy:static:prod` | Atomically deploys Convex backend code and a static build to the production deployment. |
 
 ## Testing
 
@@ -157,9 +169,9 @@ Route registration is in [convex/http.ts](convex/http.ts) and the handler is in 
 ## Deployment
 
 - Convex: run `pnpm exec convex deploy` (or promote through the dashboard) to push functions to a production deployment. Set the server-scoped environment variables from the table above on the deployment, including the webhook secret and encryption key.
-- Next.js: `pnpm build` produces the production build for any Node-capable host or platform adapter. Provide `NEXT_PUBLIC_CONVEX_URL` at build time because it is bundled into the client.
-- Provider configuration: register the production webhook URL with AgentMail, and confirm Firecrawl and AgentMail deployment keys are set.
-- The Next.js proxy handles route protection for page navigation. It is not an authorization control; Convex functions enforce access independently.
+- Static site: run `pnpm deploy:static:prod`. The static-hosting CLI resolves the production deployment first, then [build-static.mjs](scripts/build-static.mjs) maps that URL into Next's `NEXT_PUBLIC_CONVEX_URL` before the upload. `pnpm deploy:static` is the equivalent smoke-test command for the selected dev deployment.
+- Provider configuration: register the production `https://<deployment>.convex.site/agentmail/webhook` URL with AgentMail, and confirm Firecrawl and AgentMail deployment keys are set.
+- Client navigation redirects unauthenticated visitors after auth state resolves. Convex functions remain the authorization boundary for all data and side effects.
 
 ## Current MVP boundaries
 

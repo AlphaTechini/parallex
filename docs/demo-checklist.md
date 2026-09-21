@@ -8,7 +8,8 @@ Automated commands available in this repository:
 | --- | --- |
 | `pnpm lint` | ESLint passes with the Next.js TypeScript configuration. |
 | `pnpm typecheck` | The whole project type checks with `tsc --noEmit`. |
-| `pnpm build` | The production build completes, including the proxy entry point. |
+| `pnpm build` | The static production export completes. |
+| `pnpm deploy:static` | Builds against the selected Convex dev deployment and publishes static assets to its `.convex.site` URL. |
 | `pnpm test` | Runs the committed ownership, idempotency, state, instruction, upload, routing, and integration-regression suites with `convex-test` provider boundaries. |
 
 The Convex dashboard is the backing-state inspector for the manual checks: confirm the actual rows (`bots`, `researchRuns`, `researchSources`, `reports`, `reportArtifacts`, `emailMessages`, `webhookEvents`, `researchSchedules`, `scheduleOccurrences`) rather than trusting screen copy.
@@ -20,7 +21,8 @@ Acceptance family: email and password sign-up and sign-in work with no external 
 | Check | Method |
 | --- | --- |
 | A new account can sign up and sign in with email and password. | Manual: sign up from `/signin`, expect redirect to `/dashboard`, confirm the `users` and `authTables` rows exist in the Convex dashboard. Requires no Google Cloud credentials, no OTP mailer, and no email verification step. |
-| Unauthenticated access is blocked. | Manual plus automated: `pnpm build` confirms the proxy compiles; then sign out and open `/dashboard`, `/schedules`, and `/settings`, expecting redirect to `/signin`. In a scratch browser, attempt `api.bots.listBots` from the Convex dashboard function runner without a session and expect `UNAUTHENTICATED`. |
+| Unauthenticated access is blocked. | Manual plus automated: `pnpm build` confirms the static export compiles; then sign out and open `/dashboard`, `/schedules`, and `/settings`, expecting the client guard to redirect to `/signin`. In a scratch browser, attempt `api.bots.listBots` from the Convex dashboard function runner without a session and expect `UNAUTHENTICATED`. |
+| Static route behavior is correct. | Manual plus HTTP check: run `pnpm deploy:static`, open `/signin`, confirm the form renders, and confirm a nonexistent path returns the exported 404 page. Open a prior `/bots/<id>` or `/chats/<id>` link and confirm its permanent redirect preserves the identifier as `botId` or `chatId`. |
 | Sign-out returns to the sign-in page and stays signed out. | Manual: use the header control, then reload `/dashboard`. |
 
 ## 2. Empty dashboard

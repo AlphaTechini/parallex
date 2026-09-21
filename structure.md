@@ -16,9 +16,12 @@ Parallex/
 |-- eslint.config.mjs       ESLint with Next.js core-web-vitals and TypeScript presets
 |-- postcss.config.mjs      PostCSS pipeline for Tailwind CSS v4
 |-- .env.example            Environment variable schema (names only)
+|-- scripts/                Cross-platform deployment helpers
 |-- llm.txt                 Official documentation references per technology
 |-- reportRenderer.ts       Markdown-to-PDF renderer used by report publication
 |-- convex/                 Convex backend (schema, functions, workers, tools)
+|   |-- convex.config.ts    Static-hosting component registration
+|   |-- staticSite.ts       Next export route-to-asset HTTP adapter
 |   |-- lib/               Shared backend helpers (auth, crypto, providers, normalization)
 |   |-- prompts/           Research protocol and instruction composition
 |   |-- tools/             Model-facing tool registry and product handlers
@@ -26,7 +29,6 @@ Parallex/
 |   |-- workers/           Run worker, run mutations, email, inbox, stream, tool execution
 |   |-- _generated/        Convex codegen output (generated, do not edit)
 |-- src/                    Next.js application
-|   |-- proxy.ts           Route protection middleware (Next 16 proxy convention)
 |   |-- app/               App Router pages and providers
 |   |-- components/        UI components by category
 |   |-- lib/               Client-safe helpers (models, errors, formatting, run status)
@@ -40,6 +42,8 @@ Parallex/
 
 - Data model and ownership indexes: [convex/schema.ts](convex/schema.ts). Every application table carries an `ownerId` and owner-prefixed indexes.
 - Authentication boundary: [convex/auth.ts](convex/auth.ts), [convex/auth.config.ts](convex/auth.config.ts), and HTTP route registration in [convex/http.ts](convex/http.ts).
+- Static-site hosting: component registration in [convex/convex.config.ts](convex/convex.config.ts), Next asset resolution in [convex/staticSite.ts](convex/staticSite.ts), and the static upload script in [package.json](package.json).
+- Target-aware static export: [scripts/build-static.mjs](scripts/build-static.mjs) bridges the hosting CLI's resolved deployment URL to Next's `NEXT_PUBLIC_CONVEX_URL` before the frontend build.
 - Bot lifecycle and inbox provisioning state: [convex/bots.ts](convex/bots.ts), [convex/inboxes.ts](convex/inboxes.ts), [convex/workers/inboxProvisioner.ts](convex/workers/inboxProvisioner.ts).
 - Prompt submission, receipt, duplicate protection, and queueing: [convex/messages.ts](convex/messages.ts).
 - Run state machine: lease, checkpoints, tool barriers, and finalization in [convex/workers/runMutations.ts](convex/workers/runMutations.ts); OpenAI streaming and continuation in [convex/workers/runWorker.ts](convex/workers/runWorker.ts); Zhipu Chat Completions turns in [convex/workers/zhipuRunWorker.ts](convex/workers/zhipuRunWorker.ts) and [convex/workers/zhipuRunMutations.ts](convex/workers/zhipuRunMutations.ts); event normalization in [convex/workers/streamConsumer.ts](convex/workers/streamConsumer.ts); dispatch in [convex/workers/toolExecutor.ts](convex/workers/toolExecutor.ts).
@@ -51,7 +55,7 @@ Parallex/
 - Uploads: owner-bound claim tokens and validation in [convex/attachments.ts](convex/attachments.ts) and [convex/bots.ts](convex/bots.ts).
 - Credentials: encrypted OpenAI and Zhipu key storage in [convex/credentials.ts](convex/credentials.ts) and [convex/lib/crypto.ts](convex/lib/crypto.ts).
 - Model policy: catalog and effort validation in [convex/lib/models.ts](convex/lib/models.ts), research protocol composition in [convex/prompts/researchProtocol.ts](convex/prompts/researchProtocol.ts).
-- Route protection: [src/proxy.ts](src/proxy.ts) redirects unauthenticated navigation; Convex functions enforce access independently.
+- Route protection: [src/components/layout/AuthGuard.tsx](src/components/layout/AuthGuard.tsx) redirects after client auth hydration; Convex functions enforce access independently.
 - Chat experience: composition in [src/components/chat/ChatExperience.tsx](src/components/chat/ChatExperience.tsx), submission in [src/components/chat/Composer.tsx](src/components/chat/Composer.tsx), activity and artifacts in [src/components/chat/ActivityFeed.tsx](src/components/chat/ActivityFeed.tsx) and [src/components/chat/RunArtifacts.tsx](src/components/chat/RunArtifacts.tsx).
 - Acceptance verification: [docs/demo-checklist.md](docs/demo-checklist.md).
 
@@ -85,6 +89,7 @@ Parallex/
 | `src/components/settings/` | [src/components/settings/README.md](src/components/settings/README.md) |
 | `src/components/ui/` | [src/components/ui/README.md](src/components/ui/README.md) |
 | `src/lib/` | [src/lib/README.md](src/lib/README.md) |
+| `scripts/` | [scripts/README.md](scripts/README.md) |
 
 ## Key tradeoffs
 
@@ -122,6 +127,6 @@ Avatar and research uploads use single-use claim tokens created under the authen
 
 Each schedule occurrence claims an idempotent occurrence key and creates a fresh run. A compact prior report summary may be included so a run can describe change, but no occurrence continues one unbounded conversation. The cost is less conversational memory across occurrences; the benefit is bounded token use and independent, retryable runs.
 
-### Next proxy is not an authorization boundary
+### Static route guards are not an authorization boundary
 
-`src/proxy.ts` redirects unauthenticated page navigation and signed-in users away from the sign-in page. It exists for routing experience only. Every Convex function independently derives the authenticated user and verifies ownership, so bypassing or misconfiguring the proxy grants no data access.
+`src/components/layout/AuthGuard.tsx` redirects unauthenticated page navigation and the sign-in page redirects authenticated users after client auth hydration. This static-export-friendly routing exists for experience only. Every Convex function independently derives the authenticated user and verifies ownership, so bypassing or misconfiguring the client guard grants no data access.

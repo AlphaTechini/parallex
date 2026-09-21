@@ -34,6 +34,8 @@ Official implementation references for the Parallex research-agent stack, groupe
 - https://docs.convex.dev/testing/convex-test - Shows how to test Convex functions with `convex-test`, Vitest, a supplied schema, and `import.meta.glob` function modules.
 - https://docs.convex.dev/production/environment-variables - Explains deployment-scoped environment variables, dashboard and CLI management, and access through `process.env`.
 - https://docs.convex.dev/dashboard/overview - Introduces the Convex dashboard for deployments, data, functions, logs, files, schedules, environment variables, and operational inspection.
+- https://docs.convex.dev/production/hosting/ - Official guidance for deploying a frontend alongside a Convex backend.
+- https://www.convex.dev/components/static-hosting - Static-hosting component documentation for serving an exported frontend from Convex storage and HTTP actions.
 
 ## OpenAI
 - https://developers.openai.com/api/reference/responses/overview - Defines the Responses API resource and links its creation, retrieval, cancellation, input-item, and streaming operations.

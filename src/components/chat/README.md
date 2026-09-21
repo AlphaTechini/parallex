@@ -4,6 +4,8 @@ This directory contains the conversation experience: the layout shell, message r
 
 To find the component that composes chat state, the activity feed, message list, and composer visit [ChatExperience.tsx](file:///C:/Hackathons/Parallex/src/components/chat/ChatExperience.tsx).
 
+To find the static route client that reads `chatId` from the query string before mounting the chat experience visit [ChatPageContent.tsx](file:///C:/Hackathons/Parallex/src/components/chat/ChatPageContent.tsx).
+
 To find the submission composer with model and effort selectors, duplicate-safe submission identifiers, and the missing-key notice visit [Composer.tsx](file:///C:/Hackathons/Parallex/src/components/chat/Composer.tsx).
 
 To find the owner-bound attachment upload flow visit [AttachmentPicker.tsx](file:///C:/Hackathons/Parallex/src/components/chat/AttachmentPicker.tsx).
@@ -26,4 +28,5 @@ The message persistence connection can be found in [Composer.tsx](file:///C:/Hac
 - Assistant Markdown is rendered through a sanitizing renderer with an http, https, and mailto URL allowlist, independent of server-side report sanitization.
 - Attachment uploads use the same claim-token flow as avatars and reject unsupported types and sizes before submission, so rejected files never reach the research pipeline.
 - The composer shows only models whose provider credential is active, applies provider-specific reasoning levels, and queues instead of blocking during an active run, matching the backend contract.
+- Chat links use `/chats?chatId=...` rather than unbounded dynamic paths so the Next export can be hosted as static assets. The route value never authorizes access; `ChatExperience` receives only data returned by owner-checked Convex queries.
 - The activity feed is collapsible, expanded by default while a run is live and collapsed after completion, which keeps finished answers prominent without hiding the audit trail.

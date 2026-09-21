@@ -12,6 +12,8 @@ To find the per-bot memory editor visit [BotMemoryEditor.tsx](file:///C:/Hackath
 
 To find the paginated chat list for one bot visit [ChatList.tsx](file:///C:/Hackathons/Parallex/src/components/bots/ChatList.tsx).
 
+To find the client detail view that reads `botId` from the static route query string visit [BotDetailPageContent.tsx](file:///C:/Hackathons/Parallex/src/components/bots/BotDetailPageContent.tsx).
+
 The avatar upload and bot creation connection can be found in [BotCreationForm.tsx](file:///C:/Hackathons/Parallex/src/components/bots/BotCreationForm.tsx) and [bots.ts](file:///C:/Hackathons/Parallex/convex/bots.ts). The chat listing connection can be found in [ChatList.tsx](file:///C:/Hackathons/Parallex/src/components/bots/ChatList.tsx) and [chats.ts](file:///C:/Hackathons/Parallex/convex/chats.ts).
 
 ## Architectural decisions
@@ -19,3 +21,4 @@ The avatar upload and bot creation connection can be found in [BotCreationForm.t
 - Default avatars are rendered from a stored palette index instead of uploaded files, so the seven-color loop costs no storage and stays deterministic per creation order.
 - The creation form uploads the avatar through a claim token before bot creation and passes the storage identifier to `createBot`, so an orphaned upload can never become bot data.
 - Mission is presented as descriptive metadata with explanatory copy, reinforcing that it is not a model instruction; memory is edited separately.
+- Bot links use `/bots?botId=...` so the detail experience remains a client-rendered static route. The identifier only selects data; the backend verifies ownership before returning it.

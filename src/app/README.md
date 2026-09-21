@@ -16,5 +16,5 @@ The Convex client and Convex Auth provider connection can be found in [providers
 
 - Pages stay small and delegate to category components, so routing changes rarely touch product logic.
 - Providers degrade gracefully: when `NEXT_PUBLIC_CONVEX_URL` is absent the provider unmounts and the app renders a configuration state, which lets the production build succeed before Convex provisioning exists.
-- The entry page is force-dynamic and redirects to `/dashboard` or `/signin` based on server-side authentication state, keeping the default route honest for both states.
-- Dynamic segments (`[botId]`, `[chatId]`) pass identifiers straight to Convex functions; the functions, not the route, verify ownership.
+- The entry page redirects after client auth state resolves, which permits a fully static export while preserving the same destination behavior.
+- Bot and chat detail pages use `/bots?botId=...` and `/chats?chatId=...`. Query identifiers avoid unbounded static dynamic-route generation; Convex functions, not route state, verify ownership.
