@@ -4,6 +4,7 @@ import {
   internalQuery,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import { canonicalizeUrl, sha256Hex } from "./lib/normalize";
 import { getAuthenticatedUserId, requireOwnedReport, requireOwnedRun } from "./lib/authHelpers";
@@ -380,3 +381,111 @@ export const getReportDownloadUrl = query({
 export async function reportContentHash(value: Uint8Array): Promise<string> {
   return sha256Hex(new TextDecoder().decode(value));
 }
+
+async function toolReportContext(
+  ctx: QueryCtx,
+  toolCallId: Id<"toolCalls">,
+): Promise<{ call: Doc<"toolCalls">; run: Doc<"researchRuns">; chat: Doc<"chats"> }> {
+  const call = await ctx.db.get("toolCalls", toolCallId);
+  if (
+    call === null ||
+    (call.functionName !== "list_stored_reports" &&
+      call.functionName !== "read_stored_report")
+  ) {
+    throw new Error("TOOL_CALL_INVALID");
+  }
+  const run = await ctx.db.get("researchRuns", call.runId);
+  const chat = run === null ? null : await ctx.db.get("chats", run.chatId);
+  if (
+    run === null ||
+    chat === null ||
+    call.ownerId !== run.ownerId ||
+    chat.ownerId !== run.ownerId ||
+    run.chatId !== chat._id ||
+    chat.status !== "active" ||
+    TERMINAL_RUN_STATUSES.has(run.status)
+  ) {
+    throw new Error("REPORT_TOOL_CONTEXT_INVALID");
+  }
+  return { call, run, chat };
+}
+
+export const listStoredReportsForTool = internalQuery({
+  args: { toolCallId: v.id("toolCalls") },
+  handler: async (ctx, args) => {
+    const { run, chat } = await toolReportContext(ctx, args.toolCallId);
+    const reports = await ctx.db
+      .query("reports")
+      .withIndex("by_chat_created", (q) => q.eq("chatId", chat._id))
+      .order("desc")
+      .take(10);
+    const owned = reports.filter(
+      (report) => report.ownerId === run.ownerId && report.chatId === chat._id,
+    );
+    return {
+      reports: await Promise.all(
+        owned.map(async (report) => {
+          const emails = await ctx.db
+            .query("emailMessages")
+            .withIndex("by_run", (q) => q.eq("runId", report.runId))
+            .collect();
+          const email = emails.find(
+            (candidate) =>
+              candidate.direction === "outbound" &&
+              candidate.reportId === report._id,
+          );
+          return {
+            reportId: report._id,
+            title: report.title,
+            summary: report.summary.slice(0, 500),
+            status: report.status,
+            createdAt: report.createdAt,
+            runId: report.runId,
+            emailStatus: email?.status ?? null,
+            emailFailureCode: email?.failureCode ?? null,
+            emailMessageId: email?._id ?? null,
+          };
+        }),
+      ),
+    };
+  },
+});
+
+export const getStoredReportForTool = internalQuery({
+  args: { toolCallId: v.id("toolCalls"), reportId: v.string() },
+  handler: async (ctx, args) => {
+    const { run, chat } = await toolReportContext(ctx, args.toolCallId);
+    const normalizedReportId = ctx.db.normalizeId("reports", args.reportId);
+    const report = normalizedReportId === null
+      ? null
+      : await ctx.db.get("reports", normalizedReportId);
+    if (
+      report === null ||
+      report.ownerId !== run.ownerId ||
+      report.chatId !== chat._id ||
+      (report.status !== "ready" && report.status !== "partial")
+    ) {
+      throw new Error("REPORT_NOT_AVAILABLE");
+    }
+    const artifacts = await ctx.db
+      .query("reportArtifacts")
+      .withIndex("by_report_format", (q) => q.eq("reportId", report._id))
+      .collect();
+    const markdown = artifacts.find(
+      (artifact) =>
+        artifact.format === "markdown" &&
+        artifact.ownerId === run.ownerId &&
+        artifact.deletedAt === undefined,
+    );
+    return {
+      reportId: report._id,
+      title: report.title,
+      summary: report.summary,
+      status: report.status,
+      createdAt: report.createdAt,
+      runId: report.runId,
+      markdownStorageId: markdown?.storageId ?? null,
+      markdownBytes: markdown?.sizeBytes ?? null,
+    };
+  },
+});

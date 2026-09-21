@@ -17,6 +17,8 @@ import { execute as browserResearch } from "./firecrawl/browserResearch";
 import { execute as extractMedia } from "./firecrawl/extractMedia";
 import { execute as comparePageChange } from "./firecrawl/comparePageChange";
 import { execute as agentGather } from "./firecrawl/agentGather";
+import { execute as listStoredReports } from "./listStoredReports";
+import { execute as readStoredReport } from "./readStoredReport";
 import { execute as updateChatTitle } from "./updateChatTitle";
 import { execute as publishReport } from "./publishReport";
 import { execute as sendResearchEmail } from "./sendResearchEmail";
@@ -40,6 +42,8 @@ const REGISTRY: Record<ToolFunctionName, ToolHandler> = {
   firecrawl_extract_media: extractMedia,
   firecrawl_compare_page_change: comparePageChange,
   firecrawl_agent_gather: agentGather,
+  list_stored_reports: listStoredReports,
+  read_stored_report: readStoredReport,
   update_chat_title: updateChatTitle,
   publish_report: publishReport,
   send_research_email: sendResearchEmail,

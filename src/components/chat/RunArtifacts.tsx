@@ -69,7 +69,12 @@ export function RunArtifacts({ runId }: { runId: Id<"researchRuns"> }) {
           <span aria-hidden="true">✉</span>
           <div>
             <strong>Email {email.status}</strong>
-            <small>{email.subject}</small>
+            <small>
+              {email.subject}
+              {email.status === "failed" && email.failureCode
+                ? ` · code: ${email.failureCode}`
+                : ""}
+            </small>
           </div>
           {email.status === "failed" ? (
             <Button

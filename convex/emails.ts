@@ -79,15 +79,37 @@ async function emailEvent(
   });
 }
 
-async function loadEmailGraph(ctx: MutationCtx, toolCallId: Id<"toolCalls">): Promise<EmailGraph> {
+async function loadEmailGraph(
+  ctx: MutationCtx,
+  toolCallId: Id<"toolCalls">,
+  reportId?: string,
+): Promise<EmailGraph> {
   const call = await ctx.db.get("toolCalls", toolCallId);
   if (call === null || call.functionName !== "send_research_email") throw new Error("TOOL_CALL_INVALID");
   const run = await ctx.db.get("researchRuns", call.runId);
   const chat = run === null ? null : await ctx.db.get("chats", run.chatId);
   const bot = run === null ? null : await ctx.db.get("bots", run.botId);
-  const report = run === null
-    ? null
-    : await ctx.db.query("reports").withIndex("by_run", (q) => q.eq("runId", run._id)).first();
+  let report: Doc<"reports"> | null = null;
+  if (reportId !== undefined && reportId !== null) {
+    const normalizedReportId = ctx.db.normalizeId("reports", reportId);
+    report = normalizedReportId === null
+      ? null
+      : await ctx.db.get("reports", normalizedReportId);
+    if (
+      report !== null &&
+      (report.ownerId !== run?.ownerId || report.chatId !== run?.chatId)
+    ) {
+      report = null;
+    }
+  } else if (run !== null) {
+    report = await ctx.db.query("reports").withIndex("by_run", (q) => q.eq("runId", run._id)).first();
+    if (
+      report !== null &&
+      (report.ownerId !== run.ownerId || report.chatId !== run.chatId)
+    ) {
+      report = null;
+    }
+  }
   const inbox = bot === null
     ? null
     : await ctx.db.query("agentMailInboxes").withIndex("by_bot", (q) => q.eq("botId", bot._id)).unique();
@@ -105,7 +127,6 @@ async function loadEmailGraph(ctx: MutationCtx, toolCallId: Id<"toolCalls">): Pr
     run.botId !== bot._id ||
     run.chatId !== chat._id ||
     chat.botId !== bot._id ||
-    report.runId !== run._id ||
     inbox.botId !== bot._id ||
     chat.status !== "active" ||
     bot.status !== "active" ||
@@ -133,9 +154,10 @@ export const beginOutboundSend = internalMutation({
     toolCallId: v.id("toolCalls"),
     subject: v.string(),
     bodySummary: v.string(),
+    reportId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const graph = await loadEmailGraph(ctx, args.toolCallId);
+    const graph = await loadEmailGraph(ctx, args.toolCallId, args.reportId);
     if (graph.call.status !== "running" || graph.run.cancelRequested) throw new Error("RUN_NOT_LIVE");
     const key = emailSendKey(graph.run._id, graph.report._id);
     const existing = await ctx.db
@@ -152,6 +174,8 @@ export const beginOutboundSend = internalMutation({
       if (existing.status !== "sending") {
         await ctx.db.patch("emailMessages", existing._id, {
           status: "sending",
+          failureCode: undefined,
+          lastAttemptAt: Date.now(),
           updatedAt: Date.now(),
         });
       }
@@ -174,6 +198,7 @@ export const beginOutboundSend = internalMutation({
       plainTextBody: bodySummary,
       reportId: graph.report._id,
       status: "sending",
+      lastAttemptAt: now,
       createdAt: now,
       updatedAt: now,
     });
@@ -282,14 +307,22 @@ export const markOutboundFailed = internalMutation({
     if (message === null || message.direction !== "outbound") throw new Error("EMAIL_NOT_FOUND");
     const run = message.runId === undefined ? null : await ctx.db.get("researchRuns", message.runId);
     if (run === null || run.ownerId !== message.ownerId) throw new Error("EMAIL_OWNERSHIP_INVALID");
+    const safeCode = args.errorCode.replace(/[^a-z0-9_]/gi, "").slice(0, 60) || "provider_error";
     if (!canApplyDeliveryStatus(message.status, "failed")) {
       return { ok: true };
     }
     await ctx.db.patch("emailMessages", message._id, {
       status: "failed",
+      failureCode: safeCode,
+      lastAttemptAt: Date.now(),
       updatedAt: Date.now(),
     });
-    await emailEvent(ctx, run, "failed", "AgentMail could not accept the research email.");
+    await emailEvent(
+      ctx,
+      run,
+      "failed",
+      `AgentMail could not accept the research email (code: ${safeCode}).`,
+    );
     return { ok: true };
   },
 });
@@ -362,6 +395,8 @@ export const retryFailedEmail = mutation({
     emailKind(message);
     await ctx.db.patch("emailMessages", message._id, {
       status: "sending",
+      failureCode: undefined,
+      lastAttemptAt: Date.now(),
       updatedAt: Date.now(),
     });
     await ctx.scheduler.runAfter(0, retryEmailAction, { emailMessageId: message._id });
@@ -388,6 +423,7 @@ export const getEmailForRun = query({
       status: message.status,
       subject: message.subject,
       providerMessageId: message.providerMessageId ?? null,
+      failureCode: message.failureCode ?? null,
       createdAt: message.createdAt,
       updatedAt: message.updatedAt,
     };

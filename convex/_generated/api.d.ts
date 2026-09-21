@@ -63,7 +63,9 @@ import type * as tools_firecrawl_searchDeveloper from "../tools/firecrawl/search
 import type * as tools_firecrawl_searchResearch from "../tools/firecrawl/searchResearch.js";
 import type * as tools_firecrawl_searchWeb from "../tools/firecrawl/searchWeb.js";
 import type * as tools_firecrawl_shared from "../tools/firecrawl/shared.js";
+import type * as tools_listStoredReports from "../tools/listStoredReports.js";
 import type * as tools_publishReport from "../tools/publishReport.js";
+import type * as tools_readStoredReport from "../tools/readStoredReport.js";
 import type * as tools_registry from "../tools/registry.js";
 import type * as tools_sendResearchEmail from "../tools/sendResearchEmail.js";
 import type * as tools_types from "../tools/types.js";
@@ -141,7 +143,9 @@ declare const fullApi: ApiFromModules<{
   "tools/firecrawl/searchResearch": typeof tools_firecrawl_searchResearch;
   "tools/firecrawl/searchWeb": typeof tools_firecrawl_searchWeb;
   "tools/firecrawl/shared": typeof tools_firecrawl_shared;
+  "tools/listStoredReports": typeof tools_listStoredReports;
   "tools/publishReport": typeof tools_publishReport;
+  "tools/readStoredReport": typeof tools_readStoredReport;
   "tools/registry": typeof tools_registry;
   "tools/sendResearchEmail": typeof tools_sendResearchEmail;
   "tools/types": typeof tools_types;

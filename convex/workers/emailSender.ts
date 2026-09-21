@@ -32,7 +32,12 @@ type SendContext = {
 
 const beginOutbound = makeFunctionReference<
   "mutation",
-  { toolCallId: Id<"toolCalls">; subject: string; bodySummary: string },
+  {
+    toolCallId: Id<"toolCalls">;
+    subject: string;
+    bodySummary: string;
+    reportId?: string;
+  },
   SendContext | { state: "accepted"; emailMessage: SendContext["emailMessage"] }
 >("emails:beginOutboundSend");
 const getOutbound = makeFunctionReference<
@@ -178,6 +183,7 @@ export const sendEmail = internalAction({
     toolCallId: v.id("toolCalls"),
     subject: v.string(),
     bodySummary: v.string(),
+    reportId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const context = await ctx.runMutation(beginOutbound, args);

@@ -82,6 +82,8 @@ const toolFunctionName = v.union(
   v.literal("firecrawl_extract_media"),
   v.literal("firecrawl_compare_page_change"),
   v.literal("firecrawl_agent_gather"),
+  v.literal("list_stored_reports"),
+  v.literal("read_stored_report"),
   v.literal("update_chat_title"),
   v.literal("publish_report"),
   v.literal("send_research_email"),
@@ -540,6 +542,8 @@ const appTables = {
       v.literal("rejected"),
     ),
     providerTimestamp: v.optional(v.number()),
+    failureCode: v.optional(v.string()),
+    lastAttemptAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

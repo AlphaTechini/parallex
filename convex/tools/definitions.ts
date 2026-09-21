@@ -74,6 +74,8 @@ export const TOOL_FUNCTION_NAMES = [
   "firecrawl_extract_media",
   "firecrawl_compare_page_change",
   "firecrawl_agent_gather",
+  "list_stored_reports",
+  "read_stored_report",
   "update_chat_title",
   "publish_report",
   "send_research_email",
@@ -257,6 +259,18 @@ const TOOL_DEFINITIONS: readonly FunctionTool[] = [
     }),
   ),
   tool(
+    "list_stored_reports",
+    "List the stored research reports of this conversation with their publish status and latest email delivery state. Use before resending a stored report or when the user asks to retry a failed delivery.",
+    objectSchema({}),
+  ),
+  tool(
+    "read_stored_report",
+    "Read the stored markdown content of one report from this conversation by its report id. Use when a resend or retry needs the previously stored result.",
+    objectSchema({
+      reportId: stringSchema({ minLength: 1, maxLength: 64 }),
+    }),
+  ),
+  tool(
     "update_chat_title",
     "Set a concise title for the current untitled conversation. This function is available only during the initial title step.",
     objectSchema({ title: stringSchema({ minLength: 1, maxLength: 120 }) }),
@@ -272,10 +286,11 @@ const TOOL_DEFINITIONS: readonly FunctionTool[] = [
   ),
   tool(
     "send_research_email",
-    "Request delivery of the stored research result to the bot's configured recipient. The backend chooses the owned destination and stored report.",
+    "Request delivery of a stored research report to the bot's configured recipient. The backend chooses the owned destination. Omit reportId to send the report from the current run; provide a reportId from list_stored_reports to resend an earlier stored report, for example when the user asks to retry a failed delivery.",
     objectSchema({
       subject: stringSchema({ minLength: 1, maxLength: 300 }),
       bodySummary: stringSchema({ minLength: 1, maxLength: 10000 }),
+      reportId: nullable(stringSchema({ maxLength: 64 })),
     }),
   ),
   tool(
