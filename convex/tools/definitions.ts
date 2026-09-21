@@ -324,9 +324,11 @@ const TOOL_BY_NAME = new Map(
 export function getResearchToolDefinitions({
   includeChatTitle,
   includeResearchEmail = true,
+  provider,
 }: {
   includeChatTitle: boolean;
   includeResearchEmail?: boolean;
+  provider?: "openai" | "zhipu";
 }): FunctionTool[] {
   return TOOL_DEFINITIONS.filter(
     (definition) =>
@@ -334,7 +336,34 @@ export function getResearchToolDefinitions({
       (includeResearchEmail ||
         (definition.name !== "send_research_email" &&
           definition.name !== "send_direct_message")),
-  ).map((definition) => ({ ...definition }));
+  ).map((definition) => ({
+    ...definition,
+    parameters:
+      provider === "openai"
+        ? withoutOpenAIUnsupportedUriFormat(definition.parameters)
+        : definition.parameters,
+  }));
+}
+
+function withoutOpenAIUnsupportedUriFormat(value: unknown): JsonSchema {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, nestedValue]) => {
+      if (key === "format" && nestedValue === "uri") return [];
+      if (Array.isArray(nestedValue)) {
+        return [[
+          key,
+          nestedValue.map((item) =>
+            isRecord(item) ? withoutOpenAIUnsupportedUriFormat(item) : item,
+          ),
+        ]];
+      }
+      if (isRecord(nestedValue)) {
+        return [[key, withoutOpenAIUnsupportedUriFormat(nestedValue)]];
+      }
+      return [[key, nestedValue]];
+    }),
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

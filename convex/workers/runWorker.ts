@@ -441,6 +441,7 @@ async function createResponse(
     tools: getResearchToolDefinitions({
       includeChatTitle: !context.chat.titleLocked,
       includeResearchEmail: context.run.triggerKind !== "email",
+      provider: "openai",
     }),
     reasoning: {
       effort: context.run.reasoningEffort,
