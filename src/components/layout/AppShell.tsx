@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/templates", label: "Templates" },
   { href: "/schedules", label: "Schedules" },
   { href: "/settings", label: "Settings" },
 ];
@@ -45,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           Sign out
         </Button>
       </header>
-      <main className="app-main">{children}</main>
+      <main className={pathname.startsWith("/chats") ? "app-main app-main-chat" : "app-main"}>{children}</main>
     </div>
   );
 }

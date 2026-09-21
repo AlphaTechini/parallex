@@ -3,7 +3,7 @@
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import {
@@ -40,6 +40,14 @@ export function Composer({
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (input === null) return;
+    input.style.height = "auto";
+    input.style.height = `${input.scrollHeight}px`;
+  }, [content]);
 
   const availableModels = MODEL_CATALOG.filter((item) =>
     configuredProviders.some((provider) => provider === item.provider),
@@ -103,7 +111,8 @@ export function Composer({
           }
         }}
         placeholder="Ask for a market scan, literature review, policy update, or scheduled brief..."
-        rows={2}
+        ref={inputRef}
+        rows={1}
         value={content}
       />
       <div className="composer-toolbar">

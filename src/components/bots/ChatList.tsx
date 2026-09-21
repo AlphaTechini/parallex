@@ -1,16 +1,14 @@
 "use client";
 
 import type { Id } from "../../../convex/_generated/dataModel";
-import { useMutation, usePaginatedQuery } from "convex/react";
+import { usePaginatedQuery } from "convex/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
+import { NewChatButton } from "@/components/chat/NewChatButton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import { safeErrorMessage } from "@/lib/errors";
 import { formatRelativeTime } from "@/lib/format";
 import { isRunActive, runStageLabel } from "@/lib/runStatus";
 
@@ -20,24 +18,6 @@ export function ChatList({ botId }: { botId: Id<"bots"> }) {
     { botId },
     { initialNumItems: 20 },
   );
-  const createChat = useMutation(api.chats.createChat);
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  async function handleCreate() {
-    setCreating(true);
-    setError(null);
-    try {
-      const result = await createChat({ botId });
-      router.push(`/chats?chatId=${result.chatId}`);
-    } catch (cause) {
-      setError(safeErrorMessage(cause));
-    } finally {
-      setCreating(false);
-    }
-  }
-
   return (
     <section className="detail-panel">
       <div className="panel-heading">
@@ -45,11 +25,8 @@ export function ChatList({ botId }: { botId: Id<"bots"> }) {
           <span className="eyebrow">Conversations</span>
           <h2>Research threads</h2>
         </div>
-        <Button disabled={creating} onClick={handleCreate}>
-          {creating ? "Creating..." : "New chat"}
-        </Button>
+        <NewChatButton botId={botId} />
       </div>
-      {error ? <p className="form-error">{error}</p> : null}
       {status === "LoadingFirstPage" ? (
         <Spinner label="Loading chats" />
       ) : results.length === 0 ? (
