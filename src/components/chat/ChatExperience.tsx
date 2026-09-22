@@ -2,17 +2,32 @@
 
 import type { Id } from "../../../convex/_generated/dataModel";
 import { usePaginatedQuery, useQuery } from "convex/react";
-import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { api } from "../../../convex/_generated/api";
-import { BotAvatar } from "@/components/bots/BotAvatar";
+import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { Composer } from "@/components/chat/Composer";
 import { MessageRow } from "@/components/chat/MessageRow";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { isRunActive } from "@/lib/runStatus";
 import type { ProviderId } from "@/lib/models";
+
+const SIDEBAR_STORAGE_KEY = "parallex.chat-sidebar-collapsed";
+const SIDEBAR_STORAGE_EVENT = "parallex:chat-sidebar-change";
+
+function subscribeToSidebarPreference(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(SIDEBAR_STORAGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(SIDEBAR_STORAGE_EVENT, onStoreChange);
+  };
+}
+
+function sidebarPreferenceSnapshot() {
+  return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+}
 
 function scrollToLatest(
   bottomRef: { current: HTMLDivElement | null },
@@ -39,6 +54,11 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
   const programmaticScrollRef = useRef(false);
   const scrollTimerRef = useRef<number | null>(null);
   const touchYRef = useRef<number | null>(null);
+  const sidebarCollapsed = useSyncExternalStore(
+    subscribeToSidebarPreference,
+    sidebarPreferenceSnapshot,
+    () => false,
+  );
   const chat = useQuery(api.chats.getChat, { chatId });
   const bot = useQuery(
     api.bots.getBot,
@@ -192,19 +212,26 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
   ];
 
   return (
-    <div className="chat-layout">
-      <aside className="chat-rail">
-        <Link className="back-link" href={`/bots?botId=${bot._id}`}>← {bot.name}</Link>
-        <BotAvatar avatar={bot.avatar} name={bot.name} size="medium" />
-        <div>
-          <span className="eyebrow">Conversation</span>
-          <h1>{chat.title || "Untitled chat"}</h1>
-        </div>
-        <p>{bot.mission}</p>
-        <code>{bot.emailAddress || "Provisioning inbox"}</code>
-      </aside>
+    <div className={sidebarCollapsed ? "chat-layout sidebar-collapsed" : "chat-layout"}>
+      <ChatSidebar
+        botAvatar={bot.avatar}
+        botId={bot._id}
+        botName={bot.name}
+        collapsed={sidebarCollapsed}
+        currentChatId={chatId}
+        emailAddress={bot.emailAddress}
+        onToggle={() => {
+          const next = !sidebarCollapsed;
+          window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+          window.dispatchEvent(new Event(SIDEBAR_STORAGE_EVENT));
+        }}
+      />
 
       <section className="chat-main">
+        <header className="chat-titlebar">
+          <span className="eyebrow">Conversation</span>
+          <h1>{chat.title || "Untitled chat"}</h1>
+        </header>
         <div className="message-list" aria-live="polite" ref={timelineRef}>
           {status === "CanLoadMore" ? (
             <Button onClick={() => loadMore(50)} size="small" variant="quiet">
