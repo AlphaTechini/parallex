@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/Button";
 const EVENT_ICONS: Record<string, string> = {
   prompt_received: "↳",
   research_status: "●",
-  reasoning_summary: "✦",
   firecrawl_query: "◎",
   firecrawl_result: "▤",
   report_generation: "▧",
@@ -34,7 +33,9 @@ export function ActivityFeed({
     { runId },
     { initialNumItems: 30 },
   );
-  const results = [...resultsDesc].reverse();
+  const results = [...resultsDesc]
+    .filter((event) => event.kind !== "reasoning_summary")
+    .reverse();
   const [expanded, setExpanded] = useState(initiallyExpanded ?? active);
 
   return (
@@ -77,9 +78,6 @@ export function ActivityFeed({
                     </Badge>
                   </div>
                   {event.safeDetail ? <p>{event.safeDetail}</p> : null}
-                  {event.reasoningSummaryText ? (
-                    <blockquote>{event.reasoningSummaryText}</blockquote>
-                  ) : null}
                 </div>
               </article>
             ))

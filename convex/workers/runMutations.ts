@@ -702,16 +702,6 @@ export const checkpointResponseEvent = internalMutation({
         updatedAt: Date.now(),
       });
     }
-    if (args.kind === "reasoning_summary_delta" && args.delta !== undefined) {
-      await insertRunEvent(ctx, run, {
-        kind: "reasoning_summary",
-        label: "Research reasoning summary",
-        status: "updated",
-        safeDetail: args.delta.slice(0, 4000),
-        reasoningSummaryText: args.delta.slice(0, 4000),
-        providerSequenceNumber: args.sequenceNumber,
-      });
-    }
     for (const call of args.functionCalls ?? []) {
       await insertFunctionCall(ctx, run, args.responseId, call);
     }

@@ -445,7 +445,6 @@ async function createResponse(
     }),
     reasoning: {
       effort: context.run.reasoningEffort,
-      summary: "auto",
     },
     parallel_tool_calls: true,
     background: true,
