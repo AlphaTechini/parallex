@@ -13,8 +13,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { safeErrorMessage } from "@/lib/errors";
 import {
+  DEFAULT_MODEL,
   defaultEffortForModel,
-  defaultModelForProviders,
   MODEL_CATALOG,
   type ModelId,
   type ProviderId,
@@ -33,9 +33,7 @@ export function Composer({
 }) {
   const submitPrompt = useMutation(api.messages.submitPrompt);
   const [content, setContent] = useState("");
-  const [model, setModel] = useState(() =>
-    defaultModelForProviders(configuredProviders),
-  );
+  const [model, setModel] = useState<ModelId>(DEFAULT_MODEL);
   const [effort, setEffort] = useState(() => defaultEffortForModel(model));
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [sending, setSending] = useState(false);
@@ -87,7 +85,7 @@ export function Composer({
     return (
       <div className="composer-notice">
         <div>
-          <strong>Add an OpenAI or Zhipu API key to start research.</strong>
+          <strong>Add an OpenAI API key to start research.</strong>
           <span>The key is encrypted before it is stored.</span>
         </div>
         <Link className="button button-primary button-small" href="/settings">

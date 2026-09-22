@@ -405,11 +405,9 @@ const TOOL_BY_NAME = new Map(
 export function getResearchToolDefinitions({
   includeChatTitle,
   includeResearchEmail = true,
-  provider,
 }: {
   includeChatTitle: boolean;
   includeResearchEmail?: boolean;
-  provider?: "openai" | "zhipu";
 }): FunctionTool[] {
   return TOOL_DEFINITIONS.filter(
     (definition) =>
@@ -419,10 +417,7 @@ export function getResearchToolDefinitions({
           definition.name !== "send_direct_message")),
   ).map((definition) => ({
     ...definition,
-    parameters:
-      provider === "openai"
-        ? withoutOpenAIUnsupportedUriFormat(definition.parameters)
-        : definition.parameters,
+    parameters: withoutOpenAIUnsupportedUriFormat(definition.parameters),
   }));
 }
 

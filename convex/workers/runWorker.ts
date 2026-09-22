@@ -8,7 +8,7 @@ import {
 } from "../lib/openaiClient";
 import { decryptString } from "../lib/crypto";
 import { sanitizeErrorCode } from "../lib/normalize";
-import { providerForRun } from "../lib/models";
+import { providerForModel } from "../lib/models";
 import { buildProviderInput } from "../lib/providerPrompt";
 import { buildResearchInstructions } from "../prompts/researchProtocol";
 import { getResearchToolDefinitions } from "../tools/definitions";
@@ -441,7 +441,6 @@ async function createResponse(
     tools: getResearchToolDefinitions({
       includeChatTitle: !context.chat.titleLocked,
       includeResearchEmail: context.run.triggerKind !== "email",
-      provider: "openai",
     }),
     reasoning: {
       effort: context.run.reasoningEffort,
@@ -797,7 +796,7 @@ export const drive = internalAction({
 
     try {
       let context = await ctx.runMutation(getRunContext, args);
-      if (providerForRun(context.run) !== "openai") {
+      if (providerForModel(context.run.model) !== "openai") {
         throw new Error("INVALID_OPENAI_RUN_PROVIDER");
       }
       if (context.run.openaiConversationId === undefined) {

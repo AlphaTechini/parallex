@@ -21,7 +21,7 @@ The product promise is that a long research task is independent of the browser. 
 - Automatic AgentMail inbox provisioning with idempotent, retryable state. Accounts may create unlimited bots that share up to three distinct email addresses.
 - A protected template catalog for everyday, shopping, software, AI, and hardware workflows, including review-first deployment and optional first-run schedules.
 - Global custom instructions and per-bot custom instructions, versioned per run.
-- Six supported models across OpenAI and Zhipu: GPT-5.6 Luna, GPT-5.6 Terra, GPT-5.6 Sol, GPT-6 Astra, GLM-5.3 Flash, and GLM-5.3, each with model-appropriate reasoning effort levels.
+- Four supported OpenAI models: GPT-5.6 Luna, GPT-5.6 Terra, GPT-5.6 Sol, and GPT-6 Astra, each with model-appropriate reasoning effort levels.
 - One active run per chat with visible queueing for follow-up requests.
 - Fifteen Firecrawl research tools plus chat title generation, report publication, email delivery, schedule introspection and creation, and approval-gated outreach drafts.
 - Live research activity, reasoning summaries where supported, report status, and truthful email status in the chat UI.
@@ -49,7 +49,6 @@ Convex backend
   |-- File Storage (avatars, reports, research uploads)
   |
   +--> OpenAI Responses API (background responses, streaming)
-  +--> Zhipu Chat Completions API (Coding Plan, durable local turns)
   +--> Firecrawl v2 (search, scrape, map, crawl, parse, interact, browser, agent)
   +--> AgentMail (inboxes, outbound email, inbound webhooks)
 ```
@@ -58,7 +57,7 @@ The full folder tree, logic map, and links to every folder README are in [struct
 
 ### Key design decisions and tradeoffs
 
-- Convex is the source of truth, not provider state. OpenAI conversation identifiers, Zhipu completion turns, Firecrawl job identifiers, and AgentMail thread identifiers are stored with internal ownership context and never treated as authorization. The cost is deliberate duplication of display state; the benefit is recovery, audit, and owner-scoped access that survives provider retention limits.
+- Convex is the source of truth, not provider state. OpenAI conversation identifiers, Firecrawl job identifiers, and AgentMail thread identifiers are stored with internal ownership context and never treated as authorization. The cost is deliberate duplication of display state; the benefit is recovery, audit, and owner-scoped access that survives provider retention limits.
 - One active run per chat. A chat holds a single active run reference and follow-up submissions queue. This keeps provider spend predictable and the UI honest, at the cost of throughput within a single conversation.
 - The run is a resumable state machine. Short stream slices stay under the Convex action time limit, a lease plus generation counter prevents split-brain workers, and a delayed watchdog resumes stalled runs. The tradeoff is more moving parts than one long-lived action, in exchange for runs that survive interruptions and browser closure.
 - User prompts show `✓✓` only after the server transaction has stored the message, created its run, and scheduled background handling. Research activity stays attached to that prompt and updates independently of the browser tab.
@@ -70,15 +69,14 @@ The full folder tree, logic map, and links to every folder README are in [struct
 - Website monitors use a dedicated locked chat and a canonical target URL. Their tool boundary permits only provider page-change comparison on that URL, preventing discovery, crawls, and cross-site fetches during a monitor run.
 - Shared email identity routing. Several bots may send from one AgentMail inbox, while provider thread records route every known reply back to one originating bot and chat. Unknown unthreaded inbound messages are ignored without a model call.
 - Outreach approval is transactional. The model may prepare a draft but cannot send it; only the authenticated approval mutation schedules the first external email. Approved thread constraints are copied into a private per-run instruction snapshot for autonomous replies.
-- Provider-specific durability. OpenAI runs use background Responses with stream cursor recovery. Zhipu runs store each Chat Completions turn and tool barrier in Convex, then reconstruct bounded history for the next turn. Zhipu requests cannot be canceled at the provider after dispatch, but canceled runs cannot commit results or start further tools.
-- Provider-compatible tool normalization. OpenAI-strict schemas keep nullable optional fields explicit, while the backend fills omitted nullable values from Chat Completions providers such as Zhipu. Empty domain filters are treated as absent; when both non-empty include and exclude filters arrive, the narrower include allowlist wins.
-- Cross-provider continuity. Zhipu always receives bounded local chat history. Returning to OpenAI after a Zhipu turn starts a fresh OpenAI conversation seeded from the same bounded local transcript so provider switching does not omit intervening messages.
+- OpenAI durability. Runs use background Responses with stream cursor recovery, allowing a delayed watchdog to resume work after an interruption without depending on the browser.
+- Tool normalization. OpenAI-strict schemas keep nullable optional fields explicit. Empty domain filters are treated as absent; when both non-empty include and exclude filters arrive, the narrower include allowlist wins.
 - The static export uses a client-side auth guard rather than a Next.js request proxy. This allows the frontend to live on Convex storage; every Convex function still derives the authenticated user independently and verifies record ownership.
 - Static hosting keeps existing auth and webhook paths at the deployment root. A small adapter maps Next's `route/index.html` export layout to clean route URLs before the static-hosting component applies its SPA fallback.
 
 ## Security model
 
-- Secrets are deployment or server-side values only. User OpenAI and Zhipu keys are encrypted with AES-256-GCM before storage and decrypted only inside authorized server execution. Only a non-secret display hint is ever returned to the client.
+- Secrets are deployment or server-side values only. User OpenAI keys are encrypted with AES-256-GCM before storage and decrypted only inside authorized server execution. Only a non-secret display hint is ever returned to the client.
 - Every public query and mutation derives the current user from Convex Auth, loads the requested record, and verifies its stored owner before returning data or performing side effects. External identifiers never replace the ownership check.
 - Provider webhooks are authorized by Svix signature verification with a timestamp tolerance window, then deduplicated by provider event identifier, then mapped through provider identifiers to one owned record.
 - Scheduled workers have no inherited user session. They receive internal identifiers only and revalidate the user, bot, schedule, and credential state before using secrets or sending email.
@@ -91,7 +89,7 @@ The full folder tree, logic map, and links to every folder README are in [struct
 
 - Node.js (current LTS) and pnpm as the package manager.
 - A Convex account and the Convex CLI (installed as a dev dependency and run through pnpm scripts).
-- An OpenAI API key, a Zhipu Coding Plan API key, or both, supplied per user inside the product; the app does not ship model-provider credentials.
+- An OpenAI API key supplied per user inside the product; the app does not ship model-provider credentials.
 - A Firecrawl API key for the deployment.
 - An AgentMail API key and webhook signing secret for the deployment.
 
@@ -128,7 +126,7 @@ pnpm deploy:static
 
 The site is served at `https://<deployment>.convex.site`. The uploaded static build uses the Convex deployment URL already present in `.env.local`.
 
-Sign up with email and password, add an OpenAI or Zhipu API key in Settings, then create the first bot.
+Sign up with email and password, add an OpenAI API key in Settings, then create the first bot.
 
 ## Environment variables
 
@@ -143,8 +141,7 @@ Variable names only, matching `.env.example`. Values are never committed.
 | `FIRECRAWL_API_KEY` | Convex server | Server-side credential for all Firecrawl provider calls. |
 | `AGENTMAIL_API_KEY` | Convex server | Server-side credential for inbox provisioning and email send or reply. |
 | `AGENTMAIL_WEBHOOK_SECRET` | Convex server | Svix signing secret used to verify inbound webhook signatures. |
-| `OPENAI_KEY_ENCRYPTION_SECRET` | Convex server | Base64-encoded 32 byte key for AES-256-GCM encryption of user-supplied OpenAI and Zhipu keys. The existing name is retained to avoid a deployment-secret migration. |
-| `ZHIPU_CODING_BASE_URL` | Convex server | Zhipu Coding Plan OpenAI-compatible base URL. Use the regional endpoint assigned to the Coding Plan account, such as `https://api.z.ai/api/coding/paas/v4` or `https://open.bigmodel.cn/api/coding/paas/v4`. |
+| `OPENAI_KEY_ENCRYPTION_SECRET` | Convex server | Base64-encoded 32 byte key for AES-256-GCM encryption of user-supplied OpenAI keys. |
 | `CONVEX_SITE_URL` | Convex server | Convex HTTP actions URL used as the Convex Auth provider domain. |
 
 ## AgentMail webhook route

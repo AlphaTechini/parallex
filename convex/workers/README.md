@@ -1,14 +1,10 @@
 # Convex workers
 
-This directory contains the server-side execution layer: OpenAI and Zhipu research workers, shared run state mutations, the OpenAI stream consumer, the tool dispatch action, the AgentMail email sender, and the inbox provisioner. Workers have no browser session; they load owned records, revalidate state, and only then touch provider APIs or secrets.
+This directory contains the server-side execution layer: the OpenAI research worker, shared run state mutations, the OpenAI stream consumer, the tool dispatch action, the AgentMail email sender, and the inbox provisioner. Workers have no browser session; they load owned records, revalidate state, and only then touch provider APIs or secrets.
 
 To find the run state machine mutations (run claiming, leases, checkpoints, tool barriers, response intents, finalization, failure, and queue promotion) visit [runMutations.ts](file:///C:/Hackathons/Parallex/convex/workers/runMutations.ts).
 
 To find the run driver that creates or resumes OpenAI background responses, consumes stream slices, and schedules continuation visit [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts).
-
-To find the Zhipu Chat Completions driver that rebuilds bounded message history, validates finish reasons, executes the full tool loop, and checkpoints complete turns visit [zhipuRunWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/zhipuRunWorker.ts).
-
-To find Zhipu turn intents, transcript loading, completion persistence, and provider-neutral tool barriers visit [zhipuRunMutations.ts](file:///C:/Hackathons/Parallex/convex/workers/zhipuRunMutations.ts).
 
 To find the normalization of OpenAI stream events into a small closed set of event kinds visit [streamConsumer.ts](file:///C:/Hackathons/Parallex/convex/workers/streamConsumer.ts).
 
@@ -20,7 +16,7 @@ To find the provider action that sends only authenticated, approved outreach dra
 
 To find AgentMail inbox provisioning with username collision retry and idempotency visit [inboxProvisioner.ts](file:///C:/Hackathons/Parallex/convex/workers/inboxProvisioner.ts).
 
-The OpenAI Responses API connection can be found in [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts) and [openaiClient.ts](file:///C:/Hackathons/Parallex/convex/lib/openaiClient.ts). The Zhipu Chat Completions connection can be found in [zhipuRunWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/zhipuRunWorker.ts) and [zhipuClient.ts](file:///C:/Hackathons/Parallex/convex/lib/zhipuClient.ts). The AgentMail send and reply connection can be found in [emailSender.ts](file:///C:/Hackathons/Parallex/convex/workers/emailSender.ts) and [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts). The tool registry connection can be found in [toolExecutor.ts](file:///C:/Hackathons/Parallex/convex/workers/toolExecutor.ts) and [registry.ts](file:///C:/Hackathons/Parallex/convex/tools/registry.ts). The run and chat state connection can be found in [runMutations.ts](file:///C:/Hackathons/Parallex/convex/workers/runMutations.ts).
+The OpenAI Responses API connection can be found in [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts) and [openaiClient.ts](file:///C:/Hackathons/Parallex/convex/lib/openaiClient.ts). The AgentMail send and reply connection can be found in [emailSender.ts](file:///C:/Hackathons/Parallex/convex/workers/emailSender.ts) and [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts). The tool registry connection can be found in [toolExecutor.ts](file:///C:/Hackathons/Parallex/convex/workers/toolExecutor.ts) and [registry.ts](file:///C:/Hackathons/Parallex/convex/tools/registry.ts). The run and chat state connection can be found in [runMutations.ts](file:///C:/Hackathons/Parallex/convex/workers/runMutations.ts).
 
 ## Architectural decisions
 
@@ -33,5 +29,4 @@ The OpenAI Responses API connection can be found in [runWorker.ts](file:///C:/Ha
 - Inbox provisioning tries readable numbered usernames before a deterministic bot-ID suffix, recognizes AgentMail's structured collision errors, and verifies the returned address before activation. The create request remains keyed to the internal bot, so retries cannot create duplicate inboxes.
 - Internal email idempotency identities remain stable database keys. The sender hashes them into AgentMail's documented header character set at the provider boundary, which keeps old failed rows retryable without changing internal record identity.
 - Failure reporting is sanitized at the boundary: raw provider errors become safe codes and safe messages before storage, keeping secrets and stack detail out of chat-visible state.
-- Provider routing is derived from the persisted model and optional provider field. Existing runs without a provider field remain OpenAI-compatible because the model catalog is the migration fallback.
-- Zhipu uses non-streaming Chat Completions within the bounded worker action. Each request intent and completed turn is durable, but a network loss after provider completion and before the transaction can repeat model generation. Tool side effects remain idempotent because they begin only after the turn and namespaced call identifiers are stored.
+- Provider routing is derived from the persisted OpenAI model and optional provider field. Existing runs without a provider field remain compatible because the model catalog is the migration fallback.

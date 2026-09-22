@@ -9,7 +9,7 @@
 - The user selects an existing AgentMail address or creates a new address before `Confirm and deploy` becomes available.
 - New addresses accept a user-selected prefix and display the fixed AgentMail default-domain suffix separately.
 - Users may create unlimited bots, but each owner may provision at most three distinct AgentMail inboxes. Any inbox may be assigned to multiple bots. Failed provisioning attempts do not consume an address slot because they never created a provider inbox.
-- A missing OpenAI and Zhipu API key blocks deployment and shows the existing Settings redirect flow.
+- A missing OpenAI API key blocks deployment and shows the existing Settings redirect flow.
 - The browser IANA timezone is captured during deployment and included in schedule bootstrap instructions.
 - Scheduled templates check the bot's existing schedules on the first conversation run, create only missing schedules, and never duplicate a matching schedule.
 - Extreme-ranking requests such as best, cheapest, strongest, or fastest return at most five ranked results with direct URLs.

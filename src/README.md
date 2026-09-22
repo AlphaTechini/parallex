@@ -1,6 +1,6 @@
 # Next.js application
 
-This directory contains the statically exported Next.js 16 App Router frontend: client-side navigation guards, pages, UI components, and client-safe helpers. Convex static hosting serves the build at the deployment's `.convex.site` URL. The frontend is a realtime viewer and submitter of Convex state. It never talks to OpenAI, Zhipu, Firecrawl, or AgentMail directly, never holds provider credentials, and never decides authorization.
+This directory contains the statically exported Next.js 16 App Router frontend: client-side navigation guards, pages, UI components, and client-safe helpers. Convex static hosting serves the build at the deployment's `.convex.site` URL. The frontend is a realtime viewer and submitter of Convex state. It never talks to OpenAI, Firecrawl, or AgentMail directly, never holds provider credentials, and never decides authorization.
 
 To find client-side route protection for page navigation visit [AuthGuard.tsx](file:///C:/Hackathons/Parallex/src/components/layout/AuthGuard.tsx).
 

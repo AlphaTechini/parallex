@@ -23,18 +23,6 @@ export const MODEL_CATALOG = [
     provider: "openai",
     efforts: ["low", "medium", "high", "xhigh", "max"],
   },
-  {
-    id: "glm-5.3-flash",
-    label: "GLM-5.3 Flash",
-    provider: "zhipu",
-    efforts: ["low", "high", "max"],
-  },
-  {
-    id: "glm-5.3",
-    label: "GLM-5.3",
-    provider: "zhipu",
-    efforts: ["low", "high", "max"],
-  },
 ] as const;
 
 export type ModelId = (typeof MODEL_CATALOG)[number]["id"];

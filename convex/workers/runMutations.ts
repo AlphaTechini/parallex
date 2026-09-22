@@ -1,7 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { providerForRun } from "../lib/models";
-import { getActiveProviderCredential } from "../lib/providerCredentials";
+import { providerForModel, providerForRun, type ProviderId } from "../lib/models";
+import { getActiveOpenAICredential } from "../lib/providerCredentials";
 import { loadRunGraph } from "../lib/runGraph";
 import { scheduleRunDrive } from "../lib/runScheduling";
 import {
@@ -219,7 +219,7 @@ export const promoteNextQueuedRun = internalMutation({
         "run_canceled",
       );
       if (
-        providerForRun(canceled) === "openai" &&
+        providerForModel(canceled.model) === "openai" &&
         canceled.openaiResponseId !== undefined
       ) {
         const response = await ctx.db
@@ -256,12 +256,20 @@ export const claimRun = internalMutation({
     ) {
       return { claimed: false, reason: "generation_or_lease" as const };
     }
-    const provider = providerForRun(run);
-    const credential = await getActiveProviderCredential(
-      ctx,
-      run.ownerId,
-      provider,
-    );
+    // Legacy runs created before the model catalog change may still reference
+    // removed providers; fail them cleanly instead of stalling the lease cycle.
+    let provider: ProviderId;
+    try {
+      provider = providerForRun(run);
+    } catch {
+      await terminalizeRun(ctx, run, "failed", {
+        failureCode: "unsupported_model",
+        failureMessage: "This run used a model that is no longer supported.",
+        failedAt: now,
+      });
+      return { claimed: false, reason: "invalid_context" };
+    }
+    const credential = await getActiveOpenAICredential(ctx, run.ownerId);
     if (
       chat.status !== "active" ||
       bot.status !== "active" ||
@@ -274,11 +282,11 @@ export const claimRun = internalMutation({
             : "run_context_inactive",
         failureMessage:
           credential === null
-            ? `A usable ${provider === "zhipu" ? "Zhipu" : "OpenAI"} credential is required to continue this run.`
+            ? "A usable OpenAI credential is required to continue this run."
             : "This chat or bot is no longer active.",
         failedAt: now,
       });
-      return { claimed: false, reason: "invalid_context" as const };
+      return { claimed: false, reason: "invalid_context" };
     }
 
     const status = run.status === "accepted" ? "initializing_provider" : run.status;
@@ -430,7 +438,7 @@ export const getRunContext = internalMutation({
     const seedLocalHistory =
       previousRun !== undefined &&
       (previousRun.status !== "completed" ||
-        providerForRun(previousRun) !== "openai" ||
+        providerForModel(previousRun.model) !== "openai" ||
         previousRun.openaiConversationId === undefined ||
         previousRun.openaiConversationId !== chat.openaiConversationId);
     return {
@@ -481,7 +489,7 @@ export const getAbortContext = internalMutation({
   args: { runId: v.id("researchRuns") },
   handler: async (ctx, args) => {
     const { run } = await loadRunGraph(ctx, args.runId);
-    if (providerForRun(run) !== "openai") {
+    if (providerForModel(run.model) !== "openai") {
       return { responseId: undefined };
     }
     const credential = await ctx.db

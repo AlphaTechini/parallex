@@ -1,8 +1,8 @@
 import { makeFunctionReference } from "convex/server";
 import { internalMutation, type MutationCtx } from "./_generated/server";
-import { providerForRun } from "./lib/models";
+import { isValidModel, providerForModel } from "./lib/models";
 import { occurrenceKey } from "./lib/normalize";
-import { getActiveProviderCredential } from "./lib/providerCredentials";
+import { getActiveOpenAICredential } from "./lib/providerCredentials";
 import { nextOccurrence } from "./lib/recurrence";
 import { scheduleRunDrive } from "./lib/runScheduling";
 import { mapRunStatusToUiStage } from "./lib/stageMap";
@@ -16,8 +16,6 @@ const occurrenceWorker = makeFunctionReference<
 const WATCHDOG_MS = 6 * 60 * 1000;
 const DEFAULT_MODEL = "gpt-5.6-terra" as const;
 const DEFAULT_EFFORT = "medium" as const;
-const DEFAULT_ZHIPU_MODEL = "glm-5.3-flash" as const;
-const DEFAULT_ZHIPU_EFFORT = "high" as const;
 
 const NONTERMINAL_RUN_STATUSES = new Set([
   "accepted",
@@ -141,28 +139,25 @@ export const run = internalMutation({
       .unique();
     if (duplicate !== null) return { ok: true, duplicate: true, runId: duplicate.runId };
 
-    const provider =
-      schedule.provider ??
-      (creatorRun === null ? "openai" : providerForRun(creatorRun));
-    const model =
-      schedule.model ??
-      creatorRun?.model ??
-      (provider === "zhipu" ? DEFAULT_ZHIPU_MODEL : DEFAULT_MODEL);
+    const model = schedule.model ?? creatorRun?.model ?? DEFAULT_MODEL;
     const reasoningEffort =
-      schedule.reasoningEffort ??
-      creatorRun?.reasoningEffort ??
-      (provider === "zhipu" ? DEFAULT_ZHIPU_EFFORT : DEFAULT_EFFORT);
-    const credential = await getActiveProviderCredential(
-      ctx,
-      schedule.ownerId,
-      provider,
-    );
+      schedule.reasoningEffort ?? creatorRun?.reasoningEffort ?? DEFAULT_EFFORT;
+    if (!isValidModel(model) || providerForModel(model) !== "openai") {
+      return await markSkipped(
+        ctx,
+        schedule,
+        args.scheduledFor,
+        "unsupported_model",
+      );
+    }
+    const provider = "openai";
+    const credential = await getActiveOpenAICredential(ctx, schedule.ownerId);
     if (credential === null) {
       return await markSkipped(
         ctx,
         schedule,
         args.scheduledFor,
-        `${provider}_credential_unavailable`,
+        "openai_credential_unavailable",
       );
     }
 
@@ -267,7 +262,7 @@ export const run = internalMutation({
         lastMessageAt: now,
         updatedAt: now,
       });
-      const run = { _id: runId, provider, model };
+      const run = { _id: runId };
       await scheduleRunDrive(ctx, run, 1, 0);
       await scheduleRunDrive(ctx, run, 2, WATCHDOG_MS);
     }

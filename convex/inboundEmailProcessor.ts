@@ -1,6 +1,5 @@
 import { internalMutation, type MutationCtx } from "./_generated/server";
-import { providerForRun, type ProviderId } from "./lib/models";
-import { getActiveProviderCredential } from "./lib/providerCredentials";
+import { isValidModel, providerForModel } from "./lib/models";
 import { scheduleRunDrive } from "./lib/runScheduling";
 import { mapRunStatusToUiStage } from "./lib/stageMap";
 import { v } from "convex/values";
@@ -9,8 +8,6 @@ import type { Doc, Id } from "./_generated/dataModel";
 const WATCHDOG_MS = 6 * 60 * 1000;
 const DEFAULT_MODEL = "gpt-5.6-terra" as const;
 const DEFAULT_EFFORT = "medium" as const;
-const DEFAULT_ZHIPU_MODEL = "glm-5.3-flash" as const;
-const DEFAULT_ZHIPU_EFFORT = "high" as const;
 const NONTERMINAL_RUN_STATUSES = new Set([
   "accepted",
   "queued",
@@ -160,29 +157,15 @@ export const processInbound = internalMutation({
       .order("desc")
       .first();
     const ownedLatestRun = latestRun?.ownerId === inbox.ownerId ? latestRun : null;
-    const [openaiCredential, zhipuCredential] = await Promise.all([
-      getActiveProviderCredential(ctx, inbox.ownerId, "openai"),
-      getActiveProviderCredential(ctx, inbox.ownerId, "zhipu"),
-    ]);
-    let provider: ProviderId =
-      ownedLatestRun === null ? "openai" : providerForRun(ownedLatestRun);
-    if (provider === "openai" && openaiCredential === null && zhipuCredential !== null) {
-      provider = "zhipu";
-    } else if (
-      provider === "zhipu" &&
-      zhipuCredential === null &&
-      openaiCredential !== null
-    ) {
-      provider = "openai";
-    }
-    const preservesLatestProvider =
-      ownedLatestRun !== null && provider === providerForRun(ownedLatestRun);
-    const model =
-      (preservesLatestProvider ? ownedLatestRun.model : undefined) ??
-      (provider === "zhipu" ? DEFAULT_ZHIPU_MODEL : DEFAULT_MODEL);
-    const reasoningEffort =
-      (preservesLatestProvider ? ownedLatestRun.reasoningEffort : undefined) ??
-      (provider === "zhipu" ? DEFAULT_ZHIPU_EFFORT : DEFAULT_EFFORT);
+    const reusesLatestRun =
+      ownedLatestRun !== null &&
+      isValidModel(ownedLatestRun.model) &&
+      providerForModel(ownedLatestRun.model) === "openai";
+    const provider = "openai";
+    const model = reusesLatestRun ? ownedLatestRun.model : DEFAULT_MODEL;
+    const reasoningEffort = reusesLatestRun
+      ? ownedLatestRun.reasoningEffort
+      : DEFAULT_EFFORT;
     const profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_owner", (q) => q.eq("ownerId", inbox.ownerId))
@@ -327,7 +310,7 @@ export const processInbound = internalMutation({
         lastMessageAt: now,
         updatedAt: now,
       });
-      const run = { _id: runId, provider, model };
+      const run = { _id: runId };
       await scheduleRunDrive(ctx, run, 1, 0);
       await scheduleRunDrive(ctx, run, 2, WATCHDOG_MS);
     }

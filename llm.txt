@@ -56,12 +56,6 @@ Official implementation references for the Parallex research-agent stack, groupe
 - https://developers.openai.com/api/docs/models/gpt-6-astra - Lists GPT-6 Astra capabilities, Responses API tools, reasoning-effort levels, context and output limits, and rate limits.
 - https://github.com/openai/openai-node/blob/v7.18.0/README.md - Version-matched OpenAI Node SDK guide covering Responses usage, streaming, conversation continuation, errors, retries, timeouts, and webhook verification.
 
-## Zhipu
-- https://docs.z.ai/guides/llm/glm-5.3 - Official GLM-5.3 model guide covering Coding Plan endpoints, required thinking mode, reasoning effort levels, streaming, and function calling.
-- https://docs.z.ai/api-reference/llm/chat-completion - Official Chat Completions request and response schema, including messages, tools, thinking controls, and finish reasons.
-- https://docs.z.ai/guides/capabilities/function-calling - Official multi-turn function-calling flow with assistant tool calls and tool-result messages.
-- https://docs.z.ai/devpack/tool/others - Official Coding Plan OpenAI-compatible endpoint configuration and protocol selection guidance.
-
 ## Firecrawl v2
 - https://docs.firecrawl.dev/llms.txt - Official Firecrawl documentation index linking the complete v2 documentation bundle and OpenAPI specifications.
 - https://docs.firecrawl.dev/_llms/en/v2.md - Consolidated English v2 index used to discover Firecrawl feature, SDK, and API reference pages.

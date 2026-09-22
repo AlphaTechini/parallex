@@ -8,10 +8,9 @@ import {
 import {
   isValidEffort,
   isValidModel,
-  providerForModel,
 } from "./lib/models";
 import { sha256Hex } from "./lib/normalize";
-import { getActiveProviderCredential } from "./lib/providerCredentials";
+import { getActiveOpenAICredential } from "./lib/providerCredentials";
 import { scheduleRunDrive } from "./lib/runScheduling";
 import { mapRunStatusToUiStage } from "./lib/stageMap";
 import { paginationOptsValidator } from "convex/server";
@@ -109,11 +108,9 @@ export const submitPrompt = mutation({
     if (!isValidEffort(args.model, args.reasoningEffort)) {
       throw new Error("INVALID_REASONING_EFFORT");
     }
-    const provider = providerForModel(args.model);
-    if (provider === null) throw new Error("INVALID_MODEL_PROVIDER");
-    const credential = await getActiveProviderCredential(ctx, ownerId, provider);
+    const credential = await getActiveOpenAICredential(ctx, ownerId);
     if (credential === null) {
-      throw new Error(provider === "zhipu" ? "NO_ZHIPU_KEY" : "NO_OPENAI_KEY");
+      throw new Error("NO_OPENAI_KEY");
     }
 
     const content = args.content.trim();
@@ -255,7 +252,7 @@ export const submitPrompt = mutation({
       chatId: chat._id,
       triggerMessageId: messageId,
       triggerKind: "web",
-      provider,
+      provider: "openai",
       model: args.model,
       reasoningEffort: args.reasoningEffort,
       globalInstructionVersionId,
@@ -301,7 +298,7 @@ export const submitPrompt = mutation({
     });
 
     if (!queued) {
-      const run = { _id: runId, provider, model: args.model };
+      const run = { _id: runId };
       await scheduleRunDrive(ctx, run, 1, 0);
       await scheduleRunDrive(ctx, run, 2, 6 * 60 * 1000);
     }

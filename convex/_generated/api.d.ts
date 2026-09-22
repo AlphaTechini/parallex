@@ -34,7 +34,6 @@ import type * as lib_runScheduling from "../lib/runScheduling.js";
 import type * as lib_stageMap from "../lib/stageMap.js";
 import type * as lib_templateFramework from "../lib/templateFramework.js";
 import type * as lib_toolCallPersistence from "../lib/toolCallPersistence.js";
-import type * as lib_zhipuClient from "../lib/zhipuClient.js";
 import type * as messages from "../messages.js";
 import type * as outreach from "../outreach.js";
 import type * as prompts_researchProtocol from "../prompts/researchProtocol.js";
@@ -87,8 +86,6 @@ import type * as workers_runMutations from "../workers/runMutations.js";
 import type * as workers_runWorker from "../workers/runWorker.js";
 import type * as workers_streamConsumer from "../workers/streamConsumer.js";
 import type * as workers_toolExecutor from "../workers/toolExecutor.js";
-import type * as workers_zhipuRunMutations from "../workers/zhipuRunMutations.js";
-import type * as workers_zhipuRunWorker from "../workers/zhipuRunWorker.js";
 
 import type {
   ApiFromModules,
@@ -123,7 +120,6 @@ declare const fullApi: ApiFromModules<{
   "lib/stageMap": typeof lib_stageMap;
   "lib/templateFramework": typeof lib_templateFramework;
   "lib/toolCallPersistence": typeof lib_toolCallPersistence;
-  "lib/zhipuClient": typeof lib_zhipuClient;
   messages: typeof messages;
   outreach: typeof outreach;
   "prompts/researchProtocol": typeof prompts_researchProtocol;
@@ -176,8 +172,6 @@ declare const fullApi: ApiFromModules<{
   "workers/runWorker": typeof workers_runWorker;
   "workers/streamConsumer": typeof workers_streamConsumer;
   "workers/toolExecutor": typeof workers_toolExecutor;
-  "workers/zhipuRunMutations": typeof workers_zhipuRunMutations;
-  "workers/zhipuRunWorker": typeof workers_zhipuRunWorker;
 }>;
 
 /**

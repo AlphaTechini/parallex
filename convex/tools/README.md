@@ -14,7 +14,7 @@ To find tool dispatch and handler registration visit [registry.ts](file:///C:/Ha
 
 To find the shared executor contract visit [types.ts](file:///C:/Hackathons/Parallex/convex/tools/types.ts).
 
-The model run connection can be found in [toolExecutor.ts](file:///C:/Hackathons/Parallex/convex/workers/toolExecutor.ts), [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts), and [zhipuRunWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/zhipuRunWorker.ts).
+The model run connection can be found in [toolExecutor.ts](file:///C:/Hackathons/Parallex/convex/workers/toolExecutor.ts) and [runWorker.ts](file:///C:/Hackathons/Parallex/convex/workers/runWorker.ts).
 
 ## Architectural decisions
 
@@ -28,4 +28,4 @@ The model run connection can be found in [toolExecutor.ts](file:///C:/Hackathons
 - Schedule creation requires an IANA timezone. The model contract resolves regional names directly and fixed GMT or UTC offsets to the reversed-sign `Etc/GMT` form before tool execution, so user-friendly input such as `GMT+1` becomes `Etc/GMT-1`.
 - Schedule start times are Unix epoch milliseconds. The tool schema enforces a 13-digit minimum, the executor canonicalizes stray second-based epochs before mutation, and a stale or second-based timestamp surfaces as an explicit `schedule_not_future` failure instead of the generic safety message.
 - `prepare_outreach_draft` deliberately has no send path. It creates reviewable data tied to the current owner, run, bot, chat, and inbox; the browser approval mutation is the only first-contact authorization boundary.
-- Chat Completions providers may omit nullable fields even when they receive the OpenAI-strict schema. Validation fills only omitted nullable properties, including nested objects, before applying the same type and bounds checks. For web search, empty domain arrays become absent filters and a non-empty include allowlist takes precedence over a conflicting exclude list.
+- Validation fills only omitted nullable properties, including nested objects, before applying the same type and bounds checks. For web search, empty domain arrays become absent filters and a non-empty include allowlist takes precedence over a conflicting exclude list.

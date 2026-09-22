@@ -3,7 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 import { getAuthenticatedUserId, requireOwnedBot } from "./lib/authHelpers";
 import { canonicalizeUrl, sha256Hex } from "./lib/normalize";
-import { getActiveProviderCredential } from "./lib/providerCredentials";
+import { getActiveOpenAICredential } from "./lib/providerCredentials";
 import { isValidTimeZone, normalizeRecurrence } from "./lib/recurrence";
 import { v } from "convex/values";
 
@@ -57,16 +57,12 @@ export const create = mutation({
       .trim()
       .slice(0, 2_000) || undefined;
 
-    const [openaiCredential, zhipuCredential] = await Promise.all([
-      getActiveProviderCredential(ctx, ownerId, "openai"),
-      getActiveProviderCredential(ctx, ownerId, "zhipu"),
-    ]);
-    if (openaiCredential === null && zhipuCredential === null) {
+    if ((await getActiveOpenAICredential(ctx, ownerId)) === null) {
       throw new Error("NO_ACTIVE_PROVIDER");
     }
-    const provider = openaiCredential === null ? "zhipu" : "openai";
-    const model = provider === "openai" ? "gpt-5.6-terra" : "glm-5.3-flash";
-    const reasoningEffort = provider === "openai" ? "medium" : "high";
+    const provider = "openai";
+    const model = "gpt-5.6-terra";
+    const reasoningEffort = "medium";
 
     const existing = await ctx.db
       .query("researchSchedules")

@@ -8,15 +8,13 @@ To find AES-256-GCM encryption and decryption of user-supplied model-provider ke
 
 To find the OpenAI Responses API client factory visit [openaiClient.ts](file:///C:/Hackathons/Parallex/convex/lib/openaiClient.ts).
 
-To find the Zhipu Coding Plan Chat Completions client factory and HTTPS endpoint validation visit [zhipuClient.ts](file:///C:/Hackathons/Parallex/convex/lib/zhipuClient.ts).
-
 To find the Firecrawl client factory, public URL and SSRF checks, provider format and timeout clamps, and safe provider error mapping visit [firecrawlClient.ts](file:///C:/Hackathons/Parallex/convex/lib/firecrawlClient.ts).
 
 To find the AgentMail client factory, provider-safe idempotency key hashing, inbox creation, outbound send with attachment, and thread reply helpers visit [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts).
 
 To find the supported model catalog and reasoning effort validation visit [models.ts](file:///C:/Hackathons/Parallex/convex/lib/models.ts).
 
-To find provider-aware encrypted credential lookup visit [providerCredentials.ts](file:///C:/Hackathons/Parallex/convex/lib/providerCredentials.ts). To find provider-aware worker dispatch visit [runScheduling.ts](file:///C:/Hackathons/Parallex/convex/lib/runScheduling.ts).
+To find encrypted OpenAI credential lookup visit [providerCredentials.ts](file:///C:/Hackathons/Parallex/convex/lib/providerCredentials.ts). To find worker dispatch visit [runScheduling.ts](file:///C:/Hackathons/Parallex/convex/lib/runScheduling.ts).
 
 To find shared run ownership loading and provider-neutral tool-call persistence visit [runGraph.ts](file:///C:/Hackathons/Parallex/convex/lib/runGraph.ts) and [toolCallPersistence.ts](file:///C:/Hackathons/Parallex/convex/lib/toolCallPersistence.ts).
 
@@ -26,7 +24,7 @@ To find recurrence normalization, timezone validation, and next-occurrence calcu
 
 To find the mapping from internal run statuses to the smaller product-visible stage set visit [stageMap.ts](file:///C:/Hackathons/Parallex/convex/lib/stageMap.ts).
 
-The OpenAI provider connection can be found in [openaiClient.ts](file:///C:/Hackathons/Parallex/convex/lib/openaiClient.ts). The Zhipu provider connection can be found in [zhipuClient.ts](file:///C:/Hackathons/Parallex/convex/lib/zhipuClient.ts). The Firecrawl provider connection can be found in [firecrawlClient.ts](file:///C:/Hackathons/Parallex/convex/lib/firecrawlClient.ts). The AgentMail provider connection can be found in [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts). The database ownership check connection can be found in [authHelpers.ts](file:///C:/Hackathons/Parallex/convex/lib/authHelpers.ts).
+The OpenAI provider connection can be found in [openaiClient.ts](file:///C:/Hackathons/Parallex/convex/lib/openaiClient.ts). The Firecrawl provider connection can be found in [firecrawlClient.ts](file:///C:/Hackathons/Parallex/convex/lib/firecrawlClient.ts). The AgentMail provider connection can be found in [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts). The database ownership check connection can be found in [authHelpers.ts](file:///C:/Hackathons/Parallex/convex/lib/authHelpers.ts).
 
 ## Architectural decisions
 

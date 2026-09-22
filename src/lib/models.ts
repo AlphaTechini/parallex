@@ -27,20 +27,6 @@ export const MODEL_CATALOG = [
     provider: "openai",
     efforts: ["low", "medium", "high", "xhigh", "max"],
   },
-  {
-    id: "glm-5.3-flash",
-    label: "GLM-5.3 Flash",
-    blurb: "Fast Coding Plan research",
-    provider: "zhipu",
-    efforts: ["low", "high", "max"],
-  },
-  {
-    id: "glm-5.3",
-    label: "GLM-5.3",
-    blurb: "Deep Coding Plan research",
-    provider: "zhipu",
-    efforts: ["low", "high", "max"],
-  },
 ] as const;
 
 export const DEFAULT_MODEL = "gpt-5.6-terra";
@@ -48,10 +34,6 @@ export const DEFAULT_EFFORT = "medium";
 
 export type ProviderId = (typeof MODEL_CATALOG)[number]["provider"];
 export type ModelId = (typeof MODEL_CATALOG)[number]["id"];
-
-export function defaultModelForProviders(providers: ProviderId[]): ModelId {
-  return providers.includes("openai") ? DEFAULT_MODEL : "glm-5.3-flash";
-}
 
 export function defaultEffortForModel(modelId: string): string {
   const model = MODEL_CATALOG.find((candidate) => candidate.id === modelId);

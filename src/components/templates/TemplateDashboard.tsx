@@ -157,7 +157,7 @@ export function TemplateDashboard() {
     return (
       <TemplateDraftEditor
         accountEmail={profile?.accountEmail ?? ""}
-        credentialsConfigured={credentials.openai || credentials.zhipu}
+        credentialsConfigured={credentials.openai}
         draft={draftDetail.draft}
         emailIdentities={emailIdentities}
         initialMemory={draftDetail.compiledMemory}
@@ -171,7 +171,7 @@ export function TemplateDashboard() {
     return (
       <TemplateOverview
         accountEmail={profile?.accountEmail ?? ""}
-        credentialsConfigured={credentials.openai || credentials.zhipu}
+        credentialsConfigured={credentials.openai}
         emailIdentities={emailIdentities}
         onBack={() => router.replace("/templates")}
         template={selectedTemplate}

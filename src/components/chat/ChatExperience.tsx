@@ -206,10 +206,9 @@ export function ChatExperience({ chatId }: { chatId: Id<"chats"> }) {
     return <section className="empty-state"><h1>Chat not found</h1></section>;
   }
 
-  const configuredProviders: ProviderId[] = [
-    ...(credentials.openai ? (["openai"] as const) : []),
-    ...(credentials.zhipu ? (["zhipu"] as const) : []),
-  ];
+  const configuredProviders: ProviderId[] = credentials.openai
+    ? ["openai"]
+    : [];
 
   return (
     <div className={sidebarCollapsed ? "chat-layout sidebar-collapsed" : "chat-layout"}>
