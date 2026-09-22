@@ -31,13 +31,17 @@ function failure(error: unknown): ExecutorResult {
       ? error.message
       : "";
   const safeMessage =
-    /RUN_NOT_LIVE|RUN_CANCELLED|TOOL_CALL_NOT_RUNNING/.test(raw)
+    /INVALID_TIMEZONE/.test(raw)
+      ? "Schedules require an IANA timezone such as Europe/London. For a fixed GMT+1 offset, use Etc/GMT-1."
+      : /RUN_NOT_LIVE|RUN_CANCELLED|TOOL_CALL_NOT_RUNNING/.test(raw)
       ? "The research run is no longer active."
       : /ATTACHMENT/.test(raw)
         ? "The attached document is no longer available for this research run."
         : "The requested function could not be executed safely.";
   const safeCode =
-    code !== "unknown_error"
+    /INVALID_TIMEZONE/.test(raw)
+      ? "invalid_timezone"
+      : code !== "unknown_error"
       ? code
       : /RUN_NOT_LIVE|RUN_CANCELLED|TOOL_CALL_NOT_RUNNING/.test(raw)
         ? "run_not_live"
