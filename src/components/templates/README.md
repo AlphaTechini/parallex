@@ -13,4 +13,5 @@ The template dashboard and deployment connection can be found in [TemplateDashbo
 - Templates are typed source data rather than mutable database rows. Deployments copy memory into versioned bot instructions, so later catalog releases do not silently alter existing bots.
 - Scheduled templates append the browser IANA timezone and an idempotent first-run checklist to bot memory. Convex remains the schedule authority.
 - The overview is read-only until Edit is selected, preserving a clear distinction between the curated default and user changes.
+- The email panel requires a valid report recipient and an explicit client-side confirmation of the selected inbox or address prefix. The confirmation invalidates when either email value changes, while bot and inbox persistence remain one atomic backend creation mutation.
 - Component-specific styles use a CSS module so the new route does not modify global styles while other product work is in progress.

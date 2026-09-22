@@ -68,6 +68,10 @@ export function TemplateOverview({
   const [emailMode, setEmailMode] = useState<"existing" | "new" | null>(null);
   const [selectedInboxId, setSelectedInboxId] = useState("");
   const [newPrefix, setNewPrefix] = useState(template.id.slice(0, 30));
+  const [deliveryEmail, setDeliveryEmail] = useState("");
+  const [confirmedEmailChoice, setConfirmedEmailChoice] = useState<string | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +89,19 @@ export function TemplateOverview({
     effectiveEmailMode === "existing"
       ? Boolean(effectiveInboxId)
       : Boolean(normalizedPrefix) && !atAddressLimit;
+  const recipientEmail = (deliveryEmail || accountEmail).trim();
+  const normalizedRecipientEmail = recipientEmail.toLowerCase();
+  const recipientReady = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    normalizedRecipientEmail,
+  );
+  const emailChoiceKey = [
+    effectiveEmailMode,
+    effectiveInboxId,
+    normalizedPrefix,
+    normalizedRecipientEmail,
+  ].join(":");
+  const emailChoiceConfirmed = confirmedEmailChoice === emailChoiceKey;
+  const emailConfirmationReady = emailReady && recipientReady;
 
   function updateSchedule(
     scheduleId: string,
@@ -99,7 +116,14 @@ export function TemplateOverview({
   }
 
   async function deploy() {
-    if (!credentialsConfigured || !emailReady || submitting) return;
+    if (
+      !credentialsConfigured ||
+      !emailConfirmationReady ||
+      !emailChoiceConfirmed ||
+      submitting
+    ) {
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -107,7 +131,7 @@ export function TemplateOverview({
         name: draft.name,
         mission: draft.mission,
         memory: deployedTemplateMemory(draft, timezone),
-        recipientEmail: accountEmail,
+        recipientEmail: normalizedRecipientEmail,
         ...(effectiveEmailMode === "existing"
           ? { emailInboxId: effectiveInboxId as Id<"agentMailInboxes"> }
           : { desiredEmailUsername: normalizedPrefix }),
@@ -402,12 +426,55 @@ export function TemplateOverview({
                 ) : null}
               </label>
             ) : null}
+            <label className={styles.addressField}>
+              <span>Reports go to</span>
+              <input
+                aria-label="Report delivery email"
+                className={styles.deliveryInput}
+                onChange={(event) => setDeliveryEmail(event.target.value)}
+                placeholder="you@company.com"
+                type="email"
+                value={recipientEmail}
+              />
+              <small>
+                A report delivery address is required before you deploy this bot.
+              </small>
+            </label>
+            <div className={styles.emailConfirm}>
+              <Button
+                disabled={!emailConfirmationReady}
+                onClick={() => {
+                  setConfirmedEmailChoice(emailChoiceKey);
+                  setError(null);
+                }}
+                size="small"
+                type="button"
+                variant="secondary"
+              >
+                {emailChoiceConfirmed
+                  ? "Email choice confirmed"
+                  : "Confirm email choice"}
+              </Button>
+              <small
+                className={
+                  emailChoiceConfirmed
+                    ? styles.confirmedEmailChoice
+                    : styles.unconfirmedEmailChoice
+                }
+              >
+                {emailChoiceConfirmed
+                  ? "Saved for deployment. You can now confirm and deploy."
+                  : "Confirm the sending address and report delivery email to unlock deployment."}
+              </small>
+            </div>
           </section>
 
           <section className={styles.examplePanel}>
             <span className="eyebrow">Try it with</span>
             <p>&ldquo;{template.exampleRequest}&rdquo;</p>
-            <small>Reports are delivered to {accountEmail || "your account email"}.</small>
+            <small>
+              Reports are delivered to {recipientEmail || "the address you enter above"}.
+            </small>
           </section>
         </aside>
       </div>
@@ -428,7 +495,7 @@ export function TemplateOverview({
         </div>
         {credentialsConfigured ? (
           <Button
-            disabled={!emailReady || submitting || !accountEmail}
+            disabled={!emailConfirmationReady || !emailChoiceConfirmed || submitting}
             onClick={() => void deploy()}
             size="large"
           >

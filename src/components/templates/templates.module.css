@@ -376,7 +376,8 @@
 .scheduleCard textarea,
 .scheduleCard select,
 .addressInputRow input,
-.identitySelect {
+.identitySelect,
+.deliveryInput {
   background: white;
   border: 1px solid #d4d4d8;
   border-radius: 10px;
@@ -519,6 +520,25 @@
 .identitySelect,
 .addressField {
   margin-top: 0.65rem;
+}
+
+.emailConfirm {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.emailConfirm small {
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.confirmedEmailChoice {
+  color: #047857;
+}
+
+.unconfirmedEmailChoice {
+  color: #71717a;
 }
 
 .addressInputRow {
