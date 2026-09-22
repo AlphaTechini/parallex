@@ -173,4 +173,4 @@ Tradeoff: a structured approval record adds schema and UI surface, but provides 
 - [x] Add deploy-time recipient, AgentMail identity, schedule, and avatar configuration.
 - [x] Publish the draft into My Templates after first successful bot deployment and allow later reuse.
 - [x] Upgrade all twenty built-in template memories with the shared comprehensive framework. The catalog held fifteen templates at audit time; five new ones were added with user approval (Executive Decision Brief Builder and Business Case Analyst for corporate workers, Academic Research Coach for students, Enterprise Vendor Due Diligence and Regulatory Intelligence Monitor for enterprises).
-- [ ] Run codegen, lint, typecheck, tests, and build before commit, push, and deployment.
+- [x] Run codegen, lint, typecheck, tests, and build before commit, push, and deployment. Codegen, lint, typecheck, tests (38 pass, 2 skip), and build all ran clean; commit `fcb70f7` pushed, functions deployed to colorless-squid-425, and the static site re-uploaded.
