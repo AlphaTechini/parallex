@@ -7,6 +7,8 @@ import {
   requireOwnedBot,
 } from "./lib/authHelpers";
 import { isValidEmail, normalizeEmail, usernameFromBotName } from "./lib/normalize";
+import { compileTemplateMemory } from "./lib/templateFramework";
+import { specificationFromDocument } from "./templateDrafts";
 import { v } from "convex/values";
 
 const DEFAULT_AVATAR_COLORS = 7;
@@ -230,19 +232,47 @@ export const finalizeAvatarUpload = mutation({
 
 export const createBot = mutation({
   args: {
-    name: v.string(),
-    mission: v.string(),
+    name: v.optional(v.string()),
+    mission: v.optional(v.string()),
     memory: v.optional(v.string()),
     recipientEmail: v.string(),
     avatarStorageId: v.optional(v.id("_storage")),
     emailInboxId: v.optional(v.id("agentMailInboxes")),
     desiredEmailUsername: v.optional(v.string()),
+    templateDraftId: v.optional(v.id("templateDrafts")),
+    timezone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const ownerId = await getAuthenticatedUserId(ctx);
-    const name = args.name.trim();
-    const mission = args.mission.trim();
-    const memory = args.memory?.trim() ?? "";
+
+    let sourceDraft: Doc<"templateDrafts"> | null = null;
+    if (args.templateDraftId !== undefined) {
+      if (args.memory !== undefined) {
+        throw new Error("TEMPLATE_DRAFT_MEMORY_OVERRIDE");
+      }
+      sourceDraft = await ctx.db.get("templateDrafts", args.templateDraftId);
+      if (
+        sourceDraft === null ||
+        sourceDraft.ownerId !== ownerId ||
+        sourceDraft.status === "archived"
+      ) {
+        throw new Error("NOT_FOUND");
+      }
+    }
+
+    const name = (
+      sourceDraft !== null ? sourceDraft.name : args.name ?? ""
+    ).trim();
+    const mission = (
+      sourceDraft !== null ? sourceDraft.mission : args.mission ?? ""
+    ).trim();
+    const memory =
+      sourceDraft !== null
+        ? compileTemplateMemory(
+            specificationFromDocument(sourceDraft),
+            (args.timezone ?? "UTC").trim().slice(0, 100) || "UTC",
+          )
+        : args.memory?.trim() ?? "";
     const recipientEmail = normalizeEmail(args.recipientEmail);
     if (!name || !mission || !recipientEmail) {
       throw new Error("INVALID_BOT_INPUT");
@@ -375,6 +405,16 @@ export const createBot = mutation({
       await ctx.db.patch("bots", botId, {
         currentInstructionVersionId: versionId,
         instructionVersion: 1,
+      });
+    }
+
+    if (sourceDraft !== null) {
+      await ctx.db.patch("templateDrafts", sourceDraft._id, {
+        status: "published",
+        deploymentCount: sourceDraft.deploymentCount + 1,
+        lastDeployedBotId: botId,
+        publishedAt: sourceDraft.publishedAt ?? now,
+        updatedAt: now,
       });
     }
 

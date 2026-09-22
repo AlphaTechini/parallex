@@ -457,6 +457,276 @@
   margin: 1rem 0 0;
 }
 
+.myTemplatesSection {
+  margin: 2rem 0 0.6rem;
+}
+
+.myTemplatesHeading h2 {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 1.9rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.myTemplatesHeading p {
+  color: #71717a;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0.35rem 0 0;
+}
+
+.draftGrid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.9rem;
+}
+
+.draftCard {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.1rem 1.2rem;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.draftCard:hover,
+.draftCard:focus-visible {
+  border-color: #a5b4fc;
+  box-shadow: 0 14px 34px rgba(30, 27, 75, 0.08);
+}
+
+.draftCardTop {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.draftCardTop strong {
+  font-size: 1rem;
+}
+
+.draftBadgeDraft,
+.draftBadgePublished {
+  border-radius: 999px;
+  flex-shrink: 0;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.draftBadgeDraft {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.draftBadgePublished {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.draftCard p {
+  color: #52525b;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.draftCard small {
+  color: #71717a;
+  font-size: 0.7rem;
+}
+
+.saveStatus {
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 750;
+  padding: 0.4rem 0.85rem;
+}
+
+.saveStatusSaving {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.saveStatusSaved {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.saveStatusError {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.fieldLabel {
+  color: #3f3f46;
+  display: grid;
+  font-size: 0.74rem;
+  font-weight: 750;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.fieldLabel input,
+.fieldLabel textarea,
+.fieldLabel select {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  color: #18181b;
+  font: inherit;
+  font-weight: 400;
+  padding: 0.7rem;
+  width: 100%;
+}
+
+.fieldLabel input:focus-visible,
+.fieldLabel textarea:focus-visible,
+.fieldLabel select:focus-visible,
+.criteriaCard input:focus-visible,
+.criteriaCard textarea:focus-visible,
+.criteriaCard select:focus-visible,
+.saveStatus:focus-visible,
+.draftCard:focus-visible {
+  outline: 3px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.criteriaList {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.criteriaCard {
+  background: #fafafa;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.criteriaCard textarea {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  color: #18181b;
+  font: inherit;
+  padding: 0.7rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.criteriaHeading {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.criteriaHeading input {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  color: #18181b;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.6rem 0.7rem;
+  width: 100%;
+}
+
+.removeButton {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 750;
+  padding: 0.4rem 0.6rem;
+  white-space: nowrap;
+}
+
+.removeButton:hover,
+.removeButton:focus-visible {
+  background: #fef2f2;
+}
+
+.criteriaFields {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 1.2fr 0.8fr auto;
+}
+
+.criteriaFields label {
+  color: #3f3f46;
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 750;
+  gap: 0.4rem;
+}
+
+.criteriaFields input,
+.criteriaFields select {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  color: #18181b;
+  font: inherit;
+  font-weight: 400;
+  padding: 0.55rem 0.6rem;
+  width: 100%;
+}
+
+.checkboxLabel {
+  align-items: end;
+  display: flex !important;
+  flex-direction: column;
+  gap: 0.55rem !important;
+  padding-bottom: 0.5rem;
+}
+
+.checkboxLabel input {
+  accent-color: var(--indigo);
+  height: 18px;
+  margin: 0 0 0.45rem;
+  width: 18px !important;
+}
+
+.avatarPicker {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.8rem;
+}
+
+.fileLabel {
+  background: white;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  color: #3f3f46;
+  cursor: pointer;
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 750;
+  padding: 0.6rem 0.9rem;
+}
+
+.fileLabel input {
+  height: 0;
+  visibility: hidden;
+  width: 0;
+}
+
 .deployColumn {
   display: grid;
   gap: 1rem;
@@ -635,6 +905,16 @@
   .deployBar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .draftGrid,
+  .criteriaFields {
+    grid-template-columns: 1fr;
+  }
+
+  .checkboxLabel {
+    flex-direction: row;
+    justify-content: flex-start;
   }
 
   .searchField,

@@ -57,6 +57,7 @@ const expectedToolNames = [
   "send_research_email",
   "send_direct_message",
   "prepare_outreach_draft",
+  "create_template_draft",
   "list_research_schedules",
   "create_research_schedule",
 ] as const;
@@ -206,10 +207,10 @@ function schemaObjects(value: unknown): Record<string, unknown>[] {
 }
 
 describe("Firecrawl routing and function contracts", () => {
-  it("exposes exactly the twenty-four approved tool names", () => {
+  it("exposes exactly the twenty-five approved tool names", () => {
     expect(TOOL_FUNCTION_NAMES).toEqual(expectedToolNames);
     expect(FIRECRAWL_TOOL_NAMES).toHaveLength(15);
-    expect(getResearchToolDefinitions({ includeChatTitle: true, includeResearchEmail: true })).toHaveLength(24);
+    expect(getResearchToolDefinitions({ includeChatTitle: true, includeResearchEmail: true })).toHaveLength(25);
   });
 
   it("marks every object schema strict and rejects unknown properties", () => {

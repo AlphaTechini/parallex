@@ -144,3 +144,33 @@ Tradeoff: a structured approval record adds schema and UI surface, but provides 
 - [x] Use Firecrawl page-change comparison with a stable monitor tag and email only when the agent identifies a relevant change.
 - [x] Enforce that monitor runs can call only the page-change tool on the exact canonical target URL, then publish and email an actual change report.
 - [x] Generate bindings, run verification, commit, push, and deploy the monitor to the existing dev URL.
+
+## Agent-created template plan
+
+### Confirmed decisions
+
+- Agent-created templates use required structured sections, not raw-memory-only drafts.
+- Convex validates section depth and compiles the structured specification into canonical bot memory.
+- After first deployment, a draft becomes a reusable private template under `My Templates`.
+- Profile images are selected and uploaded only during deployment. They are not persisted on the draft.
+- The comprehensive evaluation and pricing framework applies to all built-in templates and agent-created templates.
+- The optional SaaS UX psychology framework is not used.
+
+### Framework
+
+- [x] Require role, intended user, intake questions, hard constraints, evaluation criteria, pricing method, research workflow, source standards, ranking method, output requirements, action rules, uncertainty rules, safety boundaries, and optional schedules.
+- [x] Treat essential-factor coverage as a ranking gate. Cheapest price cannot outrank an option that materially covers more user-critical requirements without an explicit value explanation.
+- [x] Normalize all-in cost, included benefits, add-on costs, missing information, and switching or ownership costs when pricing applies.
+- [x] Require transparent weights, coverage notes, missing-data penalties, value reasoning, and sensitivity to the user's priorities.
+
+### Agent flow
+
+- [x] Add an owner-scoped template draft table with draft and published states.
+- [x] Add `create_template_draft` with strict arguments and backend comprehensiveness validation.
+- [x] Return a stable `/templates?draft=<id>` path and render a durable review button in chat.
+- [x] Add Drafts and My Templates sections to the templates dashboard.
+- [x] Add structured autosave editing and a canonical memory preview.
+- [x] Add deploy-time recipient, AgentMail identity, schedule, and avatar configuration.
+- [x] Publish the draft into My Templates after first successful bot deployment and allow later reuse.
+- [x] Upgrade all twenty built-in template memories with the shared comprehensive framework. The catalog held fifteen templates at audit time; five new ones were added with user approval (Executive Decision Brief Builder and Business Case Analyst for corporate workers, Academic Research Coach for students, Enterprise Vendor Due Diligence and Regulatory Intelligence Monitor for enterprises).
+- [ ] Run codegen, lint, typecheck, tests, and build before commit, push, and deployment.

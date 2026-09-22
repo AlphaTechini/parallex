@@ -89,6 +89,7 @@ const toolFunctionName = v.union(
   v.literal("send_research_email"),
   v.literal("send_direct_message"),
   v.literal("prepare_outreach_draft"),
+  v.literal("create_template_draft"),
   v.literal("list_research_schedules"),
   v.literal("create_research_schedule"),
 );
@@ -555,6 +556,88 @@ const appTables = {
     .index("by_idempotency_key", ["idempotencyKey"])
     .index("by_provider_thread", ["providerThreadId"])
     .index("by_owner_status", ["ownerId", "status"]),
+
+  templateDrafts: defineTable({
+    ownerId: v.id("users"),
+    sourceRunId: v.id("researchRuns"),
+    sourceBotId: v.id("bots"),
+    sourceToolCallId: v.id("toolCalls"),
+    idempotencyKey: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("published"),
+      v.literal("archived"),
+    ),
+    frameworkVersion: v.number(),
+    revision: v.number(),
+    name: v.string(),
+    shortDescription: v.string(),
+    mission: v.string(),
+    outcome: v.string(),
+    exampleRequest: v.string(),
+    category: v.union(
+      v.literal("everyday"),
+      v.literal("software"),
+      v.literal("ai"),
+      v.literal("hardware"),
+      v.literal("custom"),
+    ),
+    role: v.string(),
+    intendedUser: v.string(),
+    intakeQuestions: v.array(v.string()),
+    hardConstraints: v.array(v.string()),
+    evaluationCriteria: v.array(
+      v.object({
+        name: v.string(),
+        description: v.string(),
+        importance: v.union(
+          v.literal("essential"),
+          v.literal("high"),
+          v.literal("medium"),
+          v.literal("low"),
+        ),
+        weight: v.number(),
+        priceRelevant: v.boolean(),
+      }),
+    ),
+    pricingMethod: v.string(),
+    researchWorkflow: v.array(v.string()),
+    sourceStandards: v.array(v.string()),
+    rankingMethod: v.array(v.string()),
+    outputRequirements: v.array(v.string()),
+    actionRules: v.array(v.string()),
+    uncertaintyRules: v.array(v.string()),
+    safetyBoundaries: v.array(v.string()),
+    schedules: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        summary: v.string(),
+        researchPrompt: v.string(),
+        frequency: v.union(
+          v.literal("hourly"),
+          v.literal("daily"),
+          v.literal("weekly"),
+          v.literal("monthly"),
+        ),
+        interval: v.number(),
+        localHour: v.number(),
+        localMinute: v.number(),
+        weekday: v.optional(v.number()),
+        dayOfMonth: v.optional(v.number()),
+      }),
+    ),
+    deploymentCount: v.number(),
+    lastDeployedBotId: v.optional(v.id("bots")),
+    publishedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_status_updated", ["ownerId", "status", "updatedAt"])
+    .index("by_owner_updated", ["ownerId", "updatedAt"])
+    .index("by_source_run", ["sourceRunId"])
+    .index("by_source_tool_call", ["sourceToolCallId"])
+    .index("by_idempotency_key", ["idempotencyKey"]),
 
   emailMessages: defineTable({
     ownerId: v.id("users"),

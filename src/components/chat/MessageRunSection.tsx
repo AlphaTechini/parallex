@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import { ActivityFeed } from "@/components/chat/ActivityFeed";
 import { OutreachDrafts } from "@/components/chat/OutreachDrafts";
 import { RunStatusBanner } from "@/components/chat/RunStatusBanner";
+import { TemplateDraftArtifacts } from "@/components/chat/TemplateDraftArtifacts";
 import { Badge } from "@/components/ui/Badge";
 import { isRunActive, isRunExecuting, runStageLabel } from "@/lib/runStatus";
 
@@ -45,6 +46,7 @@ export function MessageRunSection({ runId }: { runId: Id<"researchRuns"> }) {
         runId={runId}
       />
       <OutreachDrafts runId={runId} />
+      <TemplateDraftArtifacts runId={runId} />
     </div>
   );
 }

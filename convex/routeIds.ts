@@ -17,3 +17,11 @@ export const resolveChatId = query({
     return ctx.db.normalizeId("chats", args.id);
   },
 });
+
+export const resolveTemplateDraftId = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await getAuthenticatedUserId(ctx);
+    return ctx.db.normalizeId("templateDrafts", args.id);
+  },
+});

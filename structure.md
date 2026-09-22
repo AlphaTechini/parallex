@@ -17,6 +17,8 @@ Parallex/
 |-- eslint.config.mjs       ESLint with Next.js core-web-vitals and TypeScript presets
 |-- postcss.config.mjs      PostCSS pipeline for Tailwind CSS v4
 |-- .env.example            Environment variable schema (names only)
+|-- shared/                 Runtime-neutral contracts shared by client and backend
+|   |-- templateFramework.ts  Comprehensive intake, evaluation, pricing, and ranking framework
 |-- scripts/                Cross-platform deployment helpers
 |-- llm.txt                 Official documentation references per technology
 |-- reportRenderer.ts       Markdown-to-PDF renderer used by report publication
@@ -49,6 +51,7 @@ Parallex/
 - Target-aware static export: [scripts/build-static.mjs](scripts/build-static.mjs) bridges the hosting CLI's resolved deployment URL to Next's `NEXT_PUBLIC_CONVEX_URL` before the frontend build.
 - Bot lifecycle and inbox provisioning state: [convex/bots.ts](convex/bots.ts), [convex/inboxes.ts](convex/inboxes.ts), [convex/workers/inboxProvisioner.ts](convex/workers/inboxProvisioner.ts).
 - Template catalog and deployment: [src/components/templates/templateCatalog.ts](src/components/templates/templateCatalog.ts), [src/components/templates/TemplateDashboard.tsx](src/components/templates/TemplateDashboard.tsx), and [src/app/templates/page.tsx](src/app/templates/page.tsx).
+- Agent-created template drafts: structured persistence, validation, and compiled memory in [convex/templateDrafts.ts](convex/templateDrafts.ts) and [convex/lib/templateFramework.ts](convex/lib/templateFramework.ts); the model tool in [convex/tools/createTemplateDraft.ts](convex/tools/createTemplateDraft.ts); review and autosave editing in [src/components/templates/TemplateDraftEditor.tsx](src/components/templates/TemplateDraftEditor.tsx); the chat review button in [src/components/chat/TemplateDraftArtifacts.tsx](src/components/chat/TemplateDraftArtifacts.tsx); the shared decision framework in [shared/templateFramework.ts](shared/templateFramework.ts).
 - Prompt submission, receipt, duplicate protection, and queueing: [convex/messages.ts](convex/messages.ts).
 - Run state machine: lease, checkpoints, tool barriers, and finalization in [convex/workers/runMutations.ts](convex/workers/runMutations.ts); OpenAI streaming and continuation in [convex/workers/runWorker.ts](convex/workers/runWorker.ts); Zhipu Chat Completions turns in [convex/workers/zhipuRunWorker.ts](convex/workers/zhipuRunWorker.ts) and [convex/workers/zhipuRunMutations.ts](convex/workers/zhipuRunMutations.ts); event normalization in [convex/workers/streamConsumer.ts](convex/workers/streamConsumer.ts); dispatch in [convex/workers/toolExecutor.ts](convex/workers/toolExecutor.ts).
 - Tool surface: schemas and validation in [convex/tools/definitions.ts](convex/tools/definitions.ts), dispatch in [convex/tools/registry.ts](convex/tools/registry.ts), contracts in [convex/tools/types.ts](convex/tools/types.ts).
@@ -69,6 +72,7 @@ Parallex/
 | Folder | README |
 | --- | --- |
 | Repository root | [README.md](README.md) |
+| `shared/` | [shared/README.md](shared/README.md) |
 | `docs/` | [docs/README.md](docs/README.md) |
 | `tests/` | [tests/README.md](tests/README.md) |
 | `convex/` | [convex/README.md](convex/README.md) |

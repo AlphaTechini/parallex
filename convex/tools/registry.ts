@@ -24,6 +24,7 @@ import { execute as publishReport } from "./publishReport";
 import { execute as sendResearchEmail } from "./sendResearchEmail";
 import { execute as sendDirectMessage } from "./sendDirectMessage";
 import { execute as prepareOutreachDraft } from "./prepareOutreachDraft";
+import { execute as createTemplateDraft } from "./createTemplateDraft";
 import { execute as listResearchSchedules } from "./listResearchSchedules";
 import { execute as createResearchSchedule } from "./createResearchSchedule";
 
@@ -52,6 +53,7 @@ const REGISTRY: Record<ToolFunctionName, ToolHandler> = {
   send_research_email: sendResearchEmail,
   send_direct_message: sendDirectMessage,
   prepare_outreach_draft: prepareOutreachDraft,
+  create_template_draft: createTemplateDraft,
   list_research_schedules: listResearchSchedules,
   create_research_schedule: createResearchSchedule,
 };
