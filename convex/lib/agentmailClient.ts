@@ -1,5 +1,6 @@
 "use node";
 
+import { createHash } from "node:crypto";
 import { AgentMailClient } from "agentmail";
 import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
@@ -44,6 +45,10 @@ export function getAgentMailClient(): AgentMailClient {
     throw new Error("AGENTMAIL_NOT_CONFIGURED");
   }
   return new AgentMailClient({ apiKey });
+}
+
+export function agentMailIdempotencyKey(value: string): string {
+  return `parallex-${createHash("sha256").update(value).digest("hex")}`;
 }
 
 function normalizedMessageText(value: string | undefined): string {

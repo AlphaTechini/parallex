@@ -2,7 +2,10 @@
 
 import { makeFunctionReference } from "convex/server";
 import { internalAction, type ActionCtx } from "../_generated/server";
-import { getAgentMailClient } from "../lib/agentmailClient";
+import {
+  agentMailIdempotencyKey,
+  getAgentMailClient,
+} from "../lib/agentmailClient";
 import { sanitizeErrorCode } from "../lib/normalize";
 import type { ExecutorResult } from "../tools/types";
 import { v } from "convex/values";
@@ -152,7 +155,7 @@ async function sendOutbound(
         text: body,
         attachments: attachment === undefined ? undefined : [attachment],
       },
-      { idempotencyKey: context.emailMessage.idempotencyKey },
+      { idempotencyKey: agentMailIdempotencyKey(context.emailMessage.idempotencyKey) },
     );
     await ctx.runMutation(markAccepted, {
       emailMessageId: context.emailMessage._id,
@@ -230,7 +233,7 @@ async function sendReplyForRun(ctx: ActionCtx, runId: Id<"researchRuns">) {
         text: body,
         attachments: attachment === undefined ? undefined : [attachment],
       },
-      { idempotencyKey: began.message.idempotencyKey },
+      { idempotencyKey: agentMailIdempotencyKey(began.message.idempotencyKey) },
     );
     await ctx.runMutation(markReplyAccepted, {
       emailMessageId: began.message._id,

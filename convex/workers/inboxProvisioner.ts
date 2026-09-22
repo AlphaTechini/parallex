@@ -15,11 +15,32 @@ function isUsernameUnavailable(error: unknown): boolean {
     typeof record.statusCode === "number" ? record.statusCode : undefined;
   const message =
     typeof record.message === "string" ? record.message.toLowerCase() : "";
-  return (
-    statusCode === 409 ||
-    (statusCode === 422 &&
-      /username|address|taken|unavailable|already exists/.test(message))
-  );
+  const body =
+    typeof record.body === "object" && record.body !== null
+      ? record.body as Record<string, unknown>
+      : {};
+  const code = typeof body.code === "string" ? body.code.toLowerCase() : "";
+  const bodyText = JSON.stringify(body).toLowerCase().slice(0, 4_000);
+  const unavailableCode = ["already_exists", "resource_taken"].includes(code);
+  const unavailableDetail =
+    /username|address/.test(`${message} ${bodyText}`) &&
+    /taken|unavailable|already exists|already in use/.test(`${message} ${bodyText}`);
+  return [400, 409, 422].includes(statusCode ?? 0) && (unavailableCode || unavailableDetail);
+}
+
+function usernameCandidates(desiredUsername: string, botId: string): string[] {
+  const uniqueSuffix = botId.slice(-8).toLowerCase();
+  const uniqueBase = desiredUsername.slice(0, 30 - uniqueSuffix.length - 1).replace(/-+$/, "");
+  return [
+    desiredUsername,
+    `${desiredUsername.slice(0, 28).replace(/-+$/, "")}-2`,
+    `${desiredUsername.slice(0, 28).replace(/-+$/, "")}-3`,
+    `${uniqueBase || "bot"}-${uniqueSuffix}`,
+  ].filter((candidate, index, candidates) => candidates.indexOf(candidate) === index);
+}
+
+function matchesRequestedUsername(address: string, username: string): boolean {
+  return address.trim().toLowerCase().split("@", 1)[0] === username;
 }
 
 export const provision = internalAction({
@@ -37,12 +58,7 @@ export const provision = internalAction({
       return { ok: true };
     }
 
-    const candidates = [
-      inbox.desiredUsername,
-      ...Array.from({ length: 4 }, (_, index) =>
-        `${inbox.desiredUsername}-${index + 2}`,
-      ),
-    ];
+    const candidates = usernameCandidates(inbox.desiredUsername, bot._id);
 
     for (const candidate of candidates) {
       await ctx.runMutation(internal.inboxes.markCreating, {
@@ -53,6 +69,9 @@ export const provision = internalAction({
           candidate,
           inbox.provisioningIdempotencyKey,
         );
+        if (!matchesRequestedUsername(created.confirmedAddress, candidate)) {
+          throw new Error("AGENTMAIL_INBOX_IDENTITY_MISMATCH");
+        }
         await ctx.runMutation(internal.inboxes.markActive, {
           inboxId: inbox._id,
           providerInboxId: created.providerInboxId,
