@@ -28,7 +28,7 @@ export function OutreachDrafts({ runId }: { runId: Id<"researchRuns"> }) {
     <section className="mt-3 grid gap-3" aria-label="Outreach drafts">
       {drafts.map((draft) => (
         <article
-          className="outreach-draft rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
+          className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
           key={draft._id}
         >
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">

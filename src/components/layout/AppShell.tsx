@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/Button";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
@@ -43,12 +42,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="app-header-actions">
-          <ThemeToggle />
-          <Button onClick={handleSignOut} size="small" variant="quiet">
-            Sign out
-          </Button>
-        </div>
+        <Button onClick={handleSignOut} size="small" variant="quiet">
+          Sign out
+        </Button>
       </header>
       <main className={pathname.startsWith("/chats") ? "app-main app-main-chat" : "app-main"}>{children}</main>
     </div>
