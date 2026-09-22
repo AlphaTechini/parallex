@@ -12,7 +12,7 @@ To find the Zhipu Coding Plan Chat Completions client factory and HTTPS endpoint
 
 To find the Firecrawl client factory, public URL and SSRF checks, provider format and timeout clamps, and safe provider error mapping visit [firecrawlClient.ts](file:///C:/Hackathons/Parallex/convex/lib/firecrawlClient.ts).
 
-To find the AgentMail client factory, inbox creation, outbound send with attachment, and thread reply helpers visit [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts).
+To find the AgentMail client factory, provider-safe idempotency key hashing, inbox creation, outbound send with attachment, and thread reply helpers visit [agentmailClient.ts](file:///C:/Hackathons/Parallex/convex/lib/agentmailClient.ts).
 
 To find the supported model catalog and reasoning effort validation visit [models.ts](file:///C:/Hackathons/Parallex/convex/lib/models.ts).
 

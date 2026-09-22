@@ -385,14 +385,14 @@ const TOOL_DEFINITIONS: readonly FunctionTool[] = [
   ),
   tool(
     "create_research_schedule",
-    "Create a backend-validated future or recurring research task. Recurring work must concern information that can meaningfully change or accumulate. Resolve the user's timezone before calling: pass an IANA timezone such as Europe/London or America/New_York, never a raw GMT or UTC offset. For a fixed offset, use the reversed-sign Etc/GMT form: GMT+1 becomes Etc/GMT-1 and GMT-5 becomes Etc/GMT+5. Ask a follow-up only when the user's timezone is ambiguous.",
+    "Create a backend-validated future or recurring research task. Recurring work must concern information that can meaningfully change or accumulate. Resolve the user's timezone before calling: pass an IANA timezone such as Europe/London or America/New_York, never a raw GMT or UTC offset. For a fixed offset, use the reversed-sign Etc/GMT form: GMT+1 becomes Etc/GMT-1 and GMT-5 becomes Etc/GMT+5. nextRunAt must be a Unix epoch in MILLISECONDS (13 digits, e.g. 1790000000000), strictly in the future; never send seconds. Ask a follow-up only when the user's timezone is ambiguous.",
     objectSchema({
       name: stringSchema({ minLength: 1, maxLength: 200 }),
       researchPrompt: stringSchema({ minLength: 1, maxLength: 10000 }),
       semanticReason: stringSchema({ minLength: 1, maxLength: 1000 }),
       scheduleKind: { type: "string", enum: ["one_time", "recurring"] },
       timezone: stringSchema({ minLength: 1, maxLength: 100 }),
-      nextRunAt: { type: "integer", minimum: 1 },
+      nextRunAt: { type: "integer", minimum: 1_000_000_000_000 },
       recurrence: nullable(recurrenceSchema),
     }),
   ),

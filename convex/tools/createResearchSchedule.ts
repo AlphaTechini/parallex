@@ -202,6 +202,13 @@ const createSchedule = makeFunctionReference<
 
 export async function execute(context: ToolExecutionContext): Promise<ExecutorResult> {
   const recurrence = normalizeToolRecurrence(context.args.recurrence);
+  // Models often send Unix seconds; the scheduler works in milliseconds.
+  // Anything below 1e11 can only be seconds (1e11 ms is 1973), so lift it.
+  const rawNextRunAt = context.args.nextRunAt as number;
+  const nextRunAt =
+    Number.isInteger(rawNextRunAt) && rawNextRunAt > 0 && rawNextRunAt < 1e11
+      ? rawNextRunAt * 1000
+      : rawNextRunAt;
   const result = await context.ctx.runMutation(createSchedule, {
     toolCallId: context.toolCallId,
     name: context.args.name as string,
@@ -209,7 +216,7 @@ export async function execute(context: ToolExecutionContext): Promise<ExecutorRe
     semanticReason: context.args.semanticReason as string,
     scheduleKind: context.args.scheduleKind as "one_time" | "recurring",
     timezone: context.args.timezone as string,
-    nextRunAt: context.args.nextRunAt as number,
+    nextRunAt,
     recurrence,
   });
   return {

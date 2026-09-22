@@ -33,7 +33,11 @@ function failure(error: unknown): ExecutorResult {
   const safeMessage =
     /INVALID_TIMEZONE/.test(raw)
       ? "Schedules require an IANA timezone such as Europe/London. For a fixed GMT+1 offset, use Etc/GMT-1."
-      : /RUN_NOT_LIVE|RUN_CANCELLED|TOOL_CALL_NOT_RUNNING/.test(raw)
+      : /SCHEDULE_MUST_BE_FUTURE/.test(raw)
+      ? "The first run time must be in the future. Pass nextRunAt as a Unix epoch in milliseconds (13 digits, e.g. 1790000000000)."
+      : /INVALID_RECURRENCE/.test(raw)
+        ? "The recurrence definition is invalid. Provide frequency, interval, and bounded hour, minute, weekday, and dayOfMonth values."
+        : /RUN_NOT_LIVE|RUN_CANCELLED|TOOL_CALL_NOT_RUNNING/.test(raw)
       ? "The research run is no longer active."
       : /ATTACHMENT/.test(raw)
         ? "The attached document is no longer available for this research run."
@@ -41,7 +45,11 @@ function failure(error: unknown): ExecutorResult {
   const safeCode =
     /INVALID_TIMEZONE/.test(raw)
       ? "invalid_timezone"
-      : code !== "unknown_error"
+      : /SCHEDULE_MUST_BE_FUTURE/.test(raw)
+        ? "schedule_not_future"
+        : /INVALID_RECURRENCE/.test(raw)
+          ? "invalid_recurrence"
+          : code !== "unknown_error"
       ? code
       : /RUN_NOT_LIVE|RUN_CANCELLED|TOOL_CALL_NOT_RUNNING/.test(raw)
         ? "run_not_live"
