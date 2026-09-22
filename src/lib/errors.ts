@@ -18,6 +18,10 @@ const SAFE_ERRORS: Record<string, string> = {
   OUTREACH_IDEMPOTENCY_CONFLICT:
     "This outreach draft conflicts with another record. Start a new draft instead.",
   OUTREACH_NOT_FOUND: "This outreach draft no longer exists.",
+  NO_ACTIVE_PROVIDER:
+    "Add an active OpenAI or Zhipu API key in Settings before creating a monitor.",
+  INVALID_MONITOR_URL: "Enter a valid public HTTP or HTTPS URL to monitor.",
+  INVALID_TIMEZONE: "Your browser timezone could not be used for this monitor.",
 };
 
 export function safeErrorMessage(error: unknown): string {

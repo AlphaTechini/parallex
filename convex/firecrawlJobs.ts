@@ -10,6 +10,7 @@ import {
 } from "./tools/firecrawl/outputBudget";
 import { upsertSourceRecords } from "./sources";
 import { scheduleRunDrive } from "./lib/runScheduling";
+import { canonicalizeUrl } from "./lib/normalize";
 import { v } from "convex/values";
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "canceled"]);
@@ -110,6 +111,36 @@ function isRunLive(graph: OwnedToolGraph): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function assertSiteMonitorTool(
+  schedule: Doc<"researchSchedules"> | null,
+  functionName: string,
+  args: Record<string, unknown>,
+) {
+  if (schedule?.monitorUrl === undefined) return;
+  const allowed = new Set([
+    "firecrawl_compare_page_change",
+    "publish_report",
+    "send_research_email",
+  ]);
+  if (!allowed.has(functionName)) {
+    throw new Error("SITE_MONITOR_TOOL_NOT_ALLOWED");
+  }
+  if (functionName !== "firecrawl_compare_page_change") return;
+  const url = typeof args.url === "string" ? args.url : "";
+  let canonicalUrl: string;
+  try {
+    canonicalUrl = canonicalizeUrl(url);
+  } catch {
+    throw new Error("SITE_MONITOR_URL_MISMATCH");
+  }
+  if (
+    canonicalUrl !== schedule.monitorUrl ||
+    args.tag !== schedule.monitorTag
+  ) {
+    throw new Error("SITE_MONITOR_URL_MISMATCH");
+  }
 }
 
 function failureResult(failure: ToolFailure): string {
@@ -269,6 +300,20 @@ export const getToolExecutionContext = internalMutation({
       graph.call.argumentsJson,
     );
     if (!validation.ok) throw new Error(validation.code);
+    const schedule =
+      graph.run.scheduleId === undefined
+        ? null
+        : await ctx.db.get("researchSchedules", graph.run.scheduleId);
+    if (
+      graph.run.scheduleId !== undefined &&
+      (schedule === null ||
+        schedule.ownerId !== graph.run.ownerId ||
+        schedule.botId !== graph.bot._id ||
+        schedule.chatId !== graph.chat._id)
+    ) {
+      throw new Error("SCHEDULE_RUN_LINK_INVALID");
+    }
+    assertSiteMonitorTool(schedule, graph.call.functionName, validation.value);
 
     const attachments = [];
     const attachmentId = validation.value.attachmentId;

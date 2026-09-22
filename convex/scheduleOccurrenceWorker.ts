@@ -16,6 +16,8 @@ const occurrenceWorker = makeFunctionReference<
 const WATCHDOG_MS = 6 * 60 * 1000;
 const DEFAULT_MODEL = "gpt-5.6-terra" as const;
 const DEFAULT_EFFORT = "medium" as const;
+const DEFAULT_ZHIPU_MODEL = "glm-5.3-flash" as const;
+const DEFAULT_ZHIPU_EFFORT = "high" as const;
 
 const NONTERMINAL_RUN_STATUSES = new Set([
   "accepted",
@@ -101,20 +103,24 @@ export const run = internalMutation({
 
     const bot = await ctx.db.get("bots", schedule.botId);
     const chat = await ctx.db.get("chats", schedule.chatId);
-    const creatorRun = await ctx.db.get("researchRuns", schedule.createdByRunId);
+    const creatorRun =
+      schedule.createdByRunId === undefined
+        ? null
+        : await ctx.db.get("researchRuns", schedule.createdByRunId);
     if (
       bot === null ||
       chat === null ||
-      creatorRun === null ||
       schedule.ownerId !== bot.ownerId ||
       schedule.ownerId !== chat.ownerId ||
-      schedule.ownerId !== creatorRun.ownerId ||
       schedule.botId !== bot._id ||
       schedule.chatId !== chat._id ||
-      creatorRun.botId !== bot._id ||
-      creatorRun.chatId !== chat._id ||
       bot.status !== "active" ||
-      chat.status !== "active"
+      chat.status !== "active" ||
+      (schedule.createdByRunId !== undefined &&
+        (creatorRun === null ||
+          schedule.ownerId !== creatorRun.ownerId ||
+          creatorRun.botId !== bot._id ||
+          creatorRun.chatId !== chat._id))
     ) {
       return await markSkipped(
         ctx,
@@ -135,10 +141,17 @@ export const run = internalMutation({
       .unique();
     if (duplicate !== null) return { ok: true, duplicate: true, runId: duplicate.runId };
 
-    const provider = schedule.provider ?? providerForRun(creatorRun);
-    const model = schedule.model ?? creatorRun.model ?? DEFAULT_MODEL;
+    const provider =
+      schedule.provider ??
+      (creatorRun === null ? "openai" : providerForRun(creatorRun));
+    const model =
+      schedule.model ??
+      creatorRun?.model ??
+      (provider === "zhipu" ? DEFAULT_ZHIPU_MODEL : DEFAULT_MODEL);
     const reasoningEffort =
-      schedule.reasoningEffort ?? creatorRun.reasoningEffort ?? DEFAULT_EFFORT;
+      schedule.reasoningEffort ??
+      creatorRun?.reasoningEffort ??
+      (provider === "zhipu" ? DEFAULT_ZHIPU_EFFORT : DEFAULT_EFFORT);
     const credential = await getActiveProviderCredential(
       ctx,
       schedule.ownerId,

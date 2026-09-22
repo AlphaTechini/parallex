@@ -14,6 +14,8 @@ type Schedule = {
   _id: Id<"researchSchedules">;
   name: string;
   researchPrompt: string;
+  monitorUrl: string | null;
+  monitorChangeDescription: string | null;
   scheduleKind: "one_time" | "recurring";
   timezone: string;
   nextRunAt: number | null;
@@ -46,8 +48,18 @@ export function ScheduleRow({ schedule }: { schedule: Schedule }) {
           <Badge tone="indigo">
             {schedule.scheduleKind === "one_time" ? "One time" : "Recurring"}
           </Badge>
+          {schedule.monitorUrl ? <Badge tone="indigo">Site monitor</Badge> : null}
         </div>
-        <p>{schedule.researchPrompt}</p>
+        {schedule.monitorUrl ? (
+          <p>
+            Monitoring <a href={schedule.monitorUrl} rel="noreferrer" target="_blank">{schedule.monitorUrl}</a>
+            {schedule.monitorChangeDescription
+              ? ` for: ${schedule.monitorChangeDescription}`
+              : " for any meaningful change"}
+          </p>
+        ) : (
+          <p>{schedule.researchPrompt}</p>
+        )}
         <span>
           {formatScheduleTime(schedule.nextRunAt)} · {schedule.timezone}
         </span>

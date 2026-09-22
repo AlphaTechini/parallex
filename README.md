@@ -29,6 +29,7 @@ The product promise is that a long research task is independent of the browser. 
 - Inbound email replies mapped back to the originating chat through provider thread identifiers.
 - External merchant outreach with a visible recipient, subject, body, and constraint draft that requires authenticated user approval before the first send.
 - Recurring and one-time schedules with pause, resume, and delete lifecycle controls.
+- Per-bot website monitors for one exact public URL, with daily or every-three-days checks, optional change rules, and quiet no-change runs.
 - Strict per-user isolation of bots, chats, messages, runs, sources, artifacts, schedules, and email records.
 
 ## Architecture
@@ -66,6 +67,7 @@ The full folder tree, logic map, and links to every folder README are in [struct
 - Report Markdown is sanitized on the server. HTML tags are stripped and links or bare URLs are rewritten or removed unless they match canonical source URLs recorded for the run. The client additionally renders Markdown through a sanitizing renderer.
 - Uploads are owner-bound through single-use claim tokens. Files are validated by type and size before an attachment record exists, and attachments bind to a message and run at submission time.
 - Schedule conversation bounding. Each schedule occurrence creates a fresh run with optional compact prior context instead of one unbounded conversation.
+- Website monitors use a dedicated locked chat and a canonical target URL. Their tool boundary permits only provider page-change comparison on that URL, preventing discovery, crawls, and cross-site fetches during a monitor run.
 - Shared email identity routing. Several bots may send from one AgentMail inbox, while provider thread records route every known reply back to one originating bot and chat. Unknown unthreaded inbound messages are ignored without a model call.
 - Outreach approval is transactional. The model may prepare a draft but cannot send it; only the authenticated approval mutation schedules the first external email. Approved thread constraints are copied into a private per-run instruction snapshot for autonomous replies.
 - Provider-specific durability. OpenAI runs use background Responses with stream cursor recovery. Zhipu runs store each Chat Completions turn and tool barrier in Convex, then reconstruct bounded history for the next turn. Zhipu requests cannot be canceled at the provider after dispatch, but canceled runs cannot commit results or start further tools.

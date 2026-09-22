@@ -35,8 +35,10 @@ export const listSchedules = query({
       .map((schedule) => ({
         _id: schedule._id,
         name: schedule.name,
-        researchPrompt: schedule.researchPrompt,
-        scheduleKind: schedule.scheduleKind,
+          researchPrompt: schedule.researchPrompt,
+          monitorUrl: schedule.monitorUrl ?? null,
+          monitorChangeDescription: schedule.monitorChangeDescription ?? null,
+          scheduleKind: schedule.scheduleKind,
         timezone: schedule.timezone,
         nextRunAt: schedule.status === "active" ? schedule.nextRunAt : null,
         status: schedule.status,

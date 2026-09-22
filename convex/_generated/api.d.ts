@@ -43,6 +43,7 @@ import type * as runEvents from "../runEvents.js";
 import type * as runs from "../runs.js";
 import type * as scheduleOccurrenceWorker from "../scheduleOccurrenceWorker.js";
 import type * as schedules from "../schedules.js";
+import type * as siteMonitors from "../siteMonitors.js";
 import type * as sources from "../sources.js";
 import type * as staticSite from "../staticSite.js";
 import type * as tools_createResearchSchedule from "../tools/createResearchSchedule.js";
@@ -128,6 +129,7 @@ declare const fullApi: ApiFromModules<{
   runs: typeof runs;
   scheduleOccurrenceWorker: typeof scheduleOccurrenceWorker;
   schedules: typeof schedules;
+  siteMonitors: typeof siteMonitors;
   sources: typeof sources;
   staticSite: typeof staticSite;
   "tools/createResearchSchedule": typeof tools_createResearchSchedule;

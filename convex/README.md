@@ -12,6 +12,8 @@ To find AgentMail outbound, inbound, and webhook handling visit [emails.ts](file
 
 To find schedule creation, recurrence calculation, occurrence execution, and user controls visit [schedules.ts](file:///C:/Hackathons/Parallex/convex/schedules.ts), [scheduleOccurrenceWorker.ts](file:///C:/Hackathons/Parallex/convex/scheduleOccurrenceWorker.ts), and [recurrence.ts](file:///C:/Hackathons/Parallex/convex/lib/recurrence.ts).
 
+To find direct single-URL website-monitor creation, provider selection, dedicated monitor chats, and recurrence setup visit [siteMonitors.ts](file:///C:/Hackathons/Parallex/convex/siteMonitors.ts). Exact URL restriction for monitor tool calls can be found in [firecrawlJobs.ts](file:///C:/Hackathons/Parallex/convex/firecrawlJobs.ts).
+
 To find prompt submission, receipt, duplicate protection, and chat queueing visit [messages.ts](file:///C:/Hackathons/Parallex/convex/messages.ts) and [runs.ts](file:///C:/Hackathons/Parallex/convex/runs.ts).
 
 To find bot creation, shared inbox assignment, and the three-address limit visit [bots.ts](file:///C:/Hackathons/Parallex/convex/bots.ts) and [inboxes.ts](file:///C:/Hackathons/Parallex/convex/inboxes.ts).
@@ -35,6 +37,7 @@ Subsystem folders: [lib/](file:///C:/Hackathons/Parallex/convex/lib/README.md), 
 - Email sending, inbox provisioning, and provider calls live in `"use node"` actions because their SDKs need the Node runtime; state transitions stay in mutations so each provider call is preceded and followed by transactional bookkeeping.
 - AgentMail inboxes are owner-scoped identities rather than bot-count limits. Bots hold an explicit optional inbox reference with a legacy fallback, allowing unlimited bots to share up to three addresses without a destructive migration.
 - New external outreach is draft-first. A model tool can persist the exact recipient and message, but only an authenticated approval mutation can schedule the first provider send. Known provider threads route replies to one bot and chat; unknown threads do not create runs.
+- Website monitors use ordinary recurring schedule records with optional monitor metadata and no fabricated creator run. A dedicated locked chat preserves each monitor's history, while tool validation permits only Firecrawl page-change comparison on the canonical target URL.
 - Static assets stay in the static-hosting component's storage namespace and are uploaded only through the authenticated CLI. App-owned exact HTTP routes win over the static catch-all, preserving the AgentMail webhook and Convex Auth paths at the deployment root. [staticSite.ts](file:///C:/Hackathons/Parallex/convex/staticSite.ts) resolves Next's directory export paths, redirects legacy detail URLs, returns exported 404 content for unknown routes, and revalidates route payloads between uploads.
 
 ## Static export and Convex Auth

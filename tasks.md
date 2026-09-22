@@ -135,3 +135,12 @@ Tradeoff: a structured approval record adds schema and UI surface, but provides 
 - A new external message cannot be sent until the user approves its persisted draft.
 - Approved merchant replies return to the originating bot conversation and continue under the approved constraints.
 - Unknown unthreaded inbound messages cause no bot run and no model call.
+
+## Website monitor plan
+
+- [x] Add a per-bot website monitor form that asks for one target URL, daily or every-three-days frequency, and an optional change rule.
+- [x] Create the first baseline one minute after setup, then repeat in the browser IANA timezone.
+- [x] Create a dedicated locked chat and recurring schedule without fabricating a creator run.
+- [x] Use Firecrawl page-change comparison with a stable monitor tag and email only when the agent identifies a relevant change.
+- [x] Enforce that monitor runs can call only the page-change tool on the exact canonical target URL, then publish and email an actual change report.
+- [x] Generate bindings, run verification, commit, push, and deploy the monitor to the existing dev URL.

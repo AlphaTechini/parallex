@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 import { ScheduleRow } from "@/components/schedules/ScheduleRow";
+import { SiteMonitorForm } from "@/components/schedules/SiteMonitorForm";
 import { Spinner } from "@/components/ui/Spinner";
 
 export function BotSchedules({ botId }: { botId: Id<"bots"> }) {
@@ -18,12 +19,13 @@ export function BotSchedules({ botId }: { botId: Id<"bots"> }) {
           <h2>Research schedules</h2>
         </div>
       </div>
+      <SiteMonitorForm botId={botId} />
       {schedules === undefined ? (
         <Spinner label="Loading schedules" />
       ) : schedules.length === 0 ? (
         <div className="panel-empty">
           <h3>No schedules yet</h3>
-          <p>Ask the bot in chat to create recurring or future research.</p>
+          <p>Start a website monitor above, or ask the bot in chat to create research automation.</p>
         </div>
       ) : (
         <div className="schedule-list">

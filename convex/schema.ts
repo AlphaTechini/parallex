@@ -625,13 +625,16 @@ const appTables = {
     ownerId: v.id("users"),
     botId: v.id("bots"),
     chatId: v.id("chats"),
-    createdByRunId: v.id("researchRuns"),
+    createdByRunId: v.optional(v.id("researchRuns")),
     provider: v.optional(modelProvider),
     model: v.optional(model),
     reasoningEffort: v.optional(reasoningEffort),
     name: v.string(),
     researchPrompt: v.string(),
     semanticReason: v.string(),
+    monitorUrl: v.optional(v.string()),
+    monitorChangeDescription: v.optional(v.string()),
+    monitorTag: v.optional(v.string()),
     scheduleKind: v.union(v.literal("one_time"), v.literal("recurring")),
     timezone: v.string(),
     recurrence: v.optional(
@@ -667,7 +670,8 @@ const appTables = {
     .index("by_bot_status_next", ["botId", "status", "nextRunAt"])
     .index("by_chat_created", ["chatId", "createdAt"])
     .index("by_scheduled_function", ["convexScheduledFunctionId"])
-    .index("by_created_run", ["createdByRunId"]),
+    .index("by_created_run", ["createdByRunId"])
+    .index("by_owner_bot_monitor_url", ["ownerId", "botId", "monitorUrl"]),
 
   scheduleOccurrences: defineTable({
     ownerId: v.id("users"),
